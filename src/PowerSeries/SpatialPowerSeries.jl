@@ -151,27 +151,6 @@ function times_j!(C::SpatialPowerSeries{T}, B::SpatialPowerSeries{T},
     times_j!(C,A,B,jj)
 end
 
-# function *(A::FluxPowerSeries{T}, B::SpatialPowerSeries{T};
-#            N::Integer=-1) where {T}
-#     N = (N==-1) ? min(get_N(A), get_N(B)) : N;
-#     M = get_M(A);
-# #     println("A's M: ", M)
-# #     println("B's M: ", get_M(B))
-# #     @assert M == get_M(B)
-#     p0 = get_p0(A) + get_p0(B)
-#     C = similar(B; N, p0); # C needs to be Spatial Series
-#     for jj = 1:N
-#         times_j!(C, A, B, jj);
-#     end
-    
-#     C
-# end
-
-# function *(A::SpatialPowerSeries{T}, B::FluxPowerSeries{T}; 
-#            N::Integer=-1) where {T}
-#     *(B, A, N=N)
-# end
-
 function +(A::SpatialPowerSeries, B::FluxPowerSeries)
     # This is made because we always want the output series type to be SpatialPowerSeries
     p0 = get_p0(A);
@@ -245,11 +224,19 @@ end
 ### End
 
 
-"""
-    
-"""
-# function surface_integrate
 
+""" zero_SpatialPowerSeries(M::Integer, N::Integer; p0::Integer = 0)
+
+Return a SpatialPowerSeries object initialized with zero entries.
+
+Inputs:
+ - `M`: Number of nodes in the poloidal s coordinate
+ - `N`: Order in radial ρ and toroidal θ coordinates
+ - `p0`: The leading order ρ coefficient
+
+Output:
+ - A zero SpatialPowerSeries
+"""
 function zero_SpatialPowerSeries(M::Integer, N::Integer; p0::Integer = 0)
     a = [zero_SpatialPowerSeriesSlice(M, jj) for jj = 1:N];
     SpatialPowerSeries(a; p0)

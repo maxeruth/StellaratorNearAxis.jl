@@ -84,10 +84,16 @@ function Fnorm(A::FluxPowerSeries{T}) where {T}
     return sqrt(A.a'*A.a)
 end
 
+"""
+    flux_compose(A::FluxPowerSeries{T}, B::SpatialPowerSeries{T}) where {T}
+
+Composes a FluxPowerSeries `A` with a SpatialPowerSeries `B`, i.e. `A∘B`.
+Useful, e.g., for composing the rotational transform with the flux. 
+"""
 function flux_compose(A::FluxPowerSeries{T}, B::SpatialPowerSeries{T}) where {T}
     N = get_N(A);
     p0 = get_p0(A);
-    ρ = PowerSeries_ρ();
+    ρ = PowerSeriesRho();
 
     C = similar(B; p0=p0);
     C[1].a[:] .= A[1];

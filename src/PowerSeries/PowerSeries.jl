@@ -2,11 +2,25 @@ abstract type AbstractPowerSeries{T} end
 abstract type AbstractPowerSeriesSlice{T} end
 
 ## Structs
+"""
+    PowerSeriesRho
 
-struct PowerSeries_ρ
+A struct used for algebraically representing changes in order of power series, typically stored as `p0`.
+
+# Example
+```
+A = zero_SpectralPowerSeries(1,1)
+A[1].a[1] = 1.         # A is a constant SpectralPowerSeries
+display(get_p0(A))     # The leading order of A is 0
+ρ = PowerSeriesRho()
+B = ρ^2*A
+display(get_p0(B))     # The SpectralPowerSeries B is ρ^2
+```
+"""
+struct PowerSeriesRho
     p0::Vector{Integer}
 
-    function PowerSeries_ρ(; p0::Integer=1)
+    function PowerSeriesRho(; p0::Integer=1)
         new([p0])
     end
 end
@@ -43,21 +57,53 @@ struct SpatialPowerSeriesSlice{T} <: AbstractPowerSeriesSlice{T}
     end
 end
 
+"""
+    ZeroPowerSeries{T} <: AbstractPowerSeries{T}
 
+A power series representing the zero element. 
+Multiplication of an AbstractPowerSeries by a ZeroPowerSeries returns a ZeroPowerSeries, and
+addition of an AbstractPowerSeries `A` with a ZeroPowerSeries returns `A`.
+
+# Example
+```
+A = zero_SpectralPowerSeries(1,1)
+A[1].a[1] = 1.
+Z = ZeroPowerSeries()
+display(A*Z) # Returns a ZeroPowerSeries
+display(A+Z) # Returns A
+```
+"""
 struct ZeroPowerSeries{T} <: AbstractPowerSeries{T}
     function ZeroPowerSeries(;T::DataType=Float64)
         new{T}()
     end
 end
 
+"""
+    IdentityPowerSeries{T} <: AbstractPowerSeries{T}
+
+A power series representing the identity element. 
+Multiplication of an AbstractPowerSeries `A` by an IdentityPowerSeries returns `A`.
+
+# Example
+```
+A = zero_SpectralPowerSeries(1,1)
+A[1].a[1] = 2.
+id = IdentityPowerSeries()
+display(A*id) # Returns A
+```
+"""
 struct IdentityPowerSeries{T} <: AbstractPowerSeries{T}
     function IdentityPowerSeries(; T::DataType=Float64)
         new{T}()
     end
 end
 
-## Formal power series that is a function of the flux surface
-# A = A₀ + A₁ (ϵ²ρ²)¹ + A₂ (ϵ² ρ²)² + ...
+"""
+    FluxPowerSeries{T} <: AbstractPowerSeries{T}
+
+Formal power series that is a function of the flux surface, i.e. `A = A₀ + A₁ (ρ²)¹ + A₂ (ρ²)² + ...`
+"""
 struct FluxPowerSeries{T} <: AbstractPowerSeries{T}
     a::AbstractVector{T}; # Coefficients
     p0::Vector{Integer};  # Extra factor of p0
@@ -67,11 +113,28 @@ struct FluxPowerSeries{T} <: AbstractPowerSeries{T}
     end
 end
 
-# Formal analytic power series
-# A = A0c0(ϕ)
-#     + ϵ ρ (A1c1(ϕ) cos(θ0) + A1s1(ϕ) sin(ϑ0)) +
-#     + (ϵ ρ)² (A2c0(ϕ) + A2c2(ϕ) cos(2 θ0) + A2s2(ϕ) sin(2ϑ0))
-#     + ...
+"""
+    SpectralPowerSeries{T} <: AbstractPowerSeries{T}
+
+The basic spectral representation of near-axis series.
+A `SpectralPowerSeries` is composed of `SpectralPowerSeriesSlice`s, each of which can be accessed by getindex via `A[n]`.
+Each slice `n` contains an `M × n` array of Fourier coefficients, where 
+`M` is the number of coefficients in the `s` direction and `n` is the number of coefficients in the `θ` direction. 
+In the `s` direction, the coefficients are ordered as `1`, `sin(s)`, `cos(s)`, `sin(2s)`, ...
+In the odd `n` case in the `θ` direction, the coefficients are ordered as `1`, `sin(2θ)`, `cos(2θ)`, `sin(4θ)`, ...
+In the even `n` case in the `θ` direction, the coefficients are ordered as `cos(θ)`, `sin(θ)`, `cos(3θ)`, `sin(3θ)`, ...
+Derivative routines are defined for SpectralPowerSeries; see [`rho_deriv`](@ref), [`theta_deriv`](@ref), [`s_deriv`](@ref), [`grad`](@ref), [`div`](@ref).
+
+# Example
+Create a power series representing `y = ρ sin(θ)`
+```
+M = 5                              # Number of modes in s
+N = 3                              # Number of orders in rho
+y = zero_SpectralPowerSeries(M, N) # Create a SpectralPowerSeries
+y[2].a[1,2] = 1.                   # Set the ρ sin(θ) coefficient to 1
+y
+```
+"""
 struct SpectralPowerSeries{T} <: AbstractPowerSeries{T}
     a::AbstractVector{SpectralPowerSeriesSlice{T}}; # Fourier coefficients, layed out as
       # a = [[A0c0],  [A1c1,A1s1],  [A2c0,A2c2,A2s2],  [A3c1,A3s1,A3c3,A3s3], ...],
@@ -88,10 +151,27 @@ end
 
 
 
-# A power series function struct
-# Discretization is at the collocation nodes in ϕ and θ, and asymptotic in ρ
-# Collocation in θ occurs only on the upper half circle due to even/odd symmetry
-# Series takes the form A = (ϵρ)^p0 (A0c0 + ϵρ(A1c1 cos θ + A1s1 sin θ) + ...)
+"""
+    SpatialPowerSeries{T} <: AbstractPowerSeries{T}
+
+The representation of near-axis series on collocation nodes.
+A `SpatialPowerSeries` is composed of `SpatialPowerSeriesSlice`s, each of which can be accessed by getindex via `A[n]`.
+Each slice `n` contains an `M × n` array of sampled values, where 
+`M` is the number of samples in the `s` direction and `n` is the order in the `θ` direction. 
+The `s` points are ordered as `2(j-1)π/M` for `1≤j≤M`, while in the `θ` points are ordered as `2π(k-1)/(2n-1)` for `1≤k≤n`.
+Algebraic operations, such as `*`, `/`, `inv`, etc. are defined for SpatialPowerSeries
+
+# Example
+Create a power series representing `y = ρ sin(θ)`
+```
+Mc = 5                             # Number of points in s
+N = 3                              # Number of orders in rho
+y = zero_SpectralPowerSeries(1, N) # Create a SpectralPowerSeries
+y[2].a[1,2] = 1.                   # Set the ρ sin(θ) coefficient to 1
+y_spatial = SpatialPowerSeries(y, M=Mc)
+y_spatial
+```
+"""
 struct SpatialPowerSeries{T} <: AbstractPowerSeries{T}
     a::AbstractArray{SpatialPowerSeriesSlice{T}};
       # Values, layed out as
@@ -158,34 +238,34 @@ include("./FluxPowerSeries.jl")
 include("./SpatialPowerSeries.jl")
 include("./SpectralPowerSeries.jl")
 
-## PowerSeries_ρ functions
-function get_p0(ρ::PowerSeries_ρ)
+## PowerSeriesRho functions
+function get_p0(ρ::PowerSeriesRho)
     ρ.p0[1]
 end
 
-function *(ρ::PowerSeries_ρ, A::AbstractPowerSeries)
+function *(ρ::PowerSeriesRho, A::AbstractPowerSeries)
     B = deepcopy(A);
     set_p0!(B, get_p0(A) + get_p0(ρ))
 
     B
 end
 
-function *(A::AbstractPowerSeries, ρ::PowerSeries_ρ)
+function *(A::AbstractPowerSeries, ρ::PowerSeriesRho)
     B = deepcopy(A);
     set_p0!(B, get_p0(A) + get_p0(ρ))
 
     B
 end
 
-function ^(ρ::PowerSeries_ρ, n::Integer)
-    PowerSeries_ρ(;p0=get_p0(ρ)*n)
+function ^(ρ::PowerSeriesRho, n::Integer)
+    PowerSeriesRho(;p0=get_p0(ρ)*n)
 end
 
-function inv(ρ::PowerSeries_ρ)
-    PowerSeries_ρ(;p0=-get_p0(ρ))
+function inv(ρ::PowerSeriesRho)
+    PowerSeriesRho(;p0=-get_p0(ρ))
 end
 
-function /(A::AbstractPowerSeries{T}, ρ::PowerSeries_ρ) where {T}
+function /(A::AbstractPowerSeries{T}, ρ::PowerSeriesRho) where {T}
     A*inv(ρ)
 end
 

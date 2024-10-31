@@ -1,8 +1,9 @@
-## Code to perform the direct Frenet-Serret Expansion
+"""
+    DirectNearAxisEquilibrium
 
-## The solution struct
-# _s : Spectral quantity
-# _c : On collocation nodes
+The struct used to represent an equilibrium of the direct near-axis expansion in vacuum.
+See [`InitialVacuumNearAxisEquilibrium`](@ref) to initialize the equilibrium.
+"""
 struct DirectNearAxisEquilibrium
     # Orders
     Ms::Integer;
@@ -64,7 +65,7 @@ function to_arclength(r0_s::Vector{SpectralPowerSeries{T}}, Mc::Integer) where {
     # end
     Ms = get_M(r0_s[1])
 
-    r0p_s = ϕ_deriv.(r0_s)
+    r0p_s = s_deriv.(r0_s)
     r0p_c = [SpatialPowerSeries(ri; M = Mc) for ri in r0p_s]
     ℓp_c = norm(r0p_c)
     ℓp_s = SpectralPowerSeries(ℓp_c; M=Ms)
@@ -110,11 +111,11 @@ end
 function get_κτ(r0_s::Vector{SpectralPowerSeries{T}}, Mc::Integer) where {T}
     Ms = get_M(r0_s[1])
     r0_c = [SpatialPowerSeries(ri; M = Mc) for ri in r0_s]
-    r0p_s = ϕ_deriv.(r0_s)
+    r0p_s = s_deriv.(r0_s)
     r0p_c = [SpatialPowerSeries(ri; M = Mc) for ri in r0p_s]
-    r0pp_s = ϕ_deriv.(r0p_s)
+    r0pp_s = s_deriv.(r0p_s)
     r0pp_c = [SpatialPowerSeries(ri; M = Mc) for ri in r0pp_s]
-    r0ppp_s = ϕ_deriv.(r0pp_s)
+    r0ppp_s = s_deriv.(r0pp_s)
     r0ppp_c = [SpatialPowerSeries(ri; M = Mc) for ri in r0ppp_s]
 
 
@@ -158,7 +159,7 @@ end
 function get_FS_metric(Nρ::Integer, ℓp_c::SpatialPowerSeries{T},
                κ_c::SpatialPowerSeries{T}, τ_c::SpatialPowerSeries{T},
                Ms::Integer) where {T}
-    ρ = PowerSeries_ρ()
+    ρ = PowerSeriesRho()
     ρ2 = ρ^2;
     g_c = initial_metric_matrix()
     g_s = initial_metric_matrix()
@@ -263,7 +264,7 @@ function vacuum_residual(nae::DirectNearAxisEquilibrium)
 
     B_contra_s = to_Spectral.(nae.rootg_c * (nae.ginv_c*nae.B_c));
     divB_c = to_Spatial(div(B_contra_s))
-    res = PowerSeries_ρ()^(-1) * to_Spectral(*(divB_c, inv(nae.ℓp_c); N=nae.Nρ+1))
+    res = PowerSeriesRho()^(-1) * to_Spectral(*(divB_c, inv(nae.ℓp_c); N=nae.Nρ+1))
     # display(res[1].a)
     # display(res[2].a)
     # display(res[3].a)
@@ -277,7 +278,7 @@ function regularized_residual(nae::DirectNearAxisEquilibrium)
 
     Brootg_s = to_Spectral.(nae.rootg_c * nae.BK_c);
     divB_c = to_Spatial(div(Brootg_s))
-    res = PowerSeries_ρ()^(-1) * to_Spectral(*(divB_c, inv(nae.ℓp_c); N=nae.Nρ+1))
+    res = PowerSeriesRho()^(-1) * to_Spectral(*(divB_c, inv(nae.ℓp_c); N=nae.Nρ+1))
 
     for ii = 1:3
         println("ii=$ii")
@@ -333,11 +334,11 @@ end
 function update_BK!(nae)
     to_Spectral = (x) -> SpectralPowerSeries(x, M=nae.Ms);
     to_Spatial = (x) -> SpatialPowerSeries(x, M=nae.Mc);
-    ρ = PowerSeries_ρ()
+    ρ = PowerSeriesRho()
 
     dϕds_s = deepcopy(nae.ϕ_s)
     for ii = 1:nae.N_reg
-        dϕds_s = -(nae.K_reg*nae.ℓp_s[1].a[1])^(-2) * ϕ_deriv(ϕ_deriv(dϕds_s))
+        dϕds_s = -(nae.K_reg*nae.ℓp_s[1].a[1])^(-2) * s_deriv(s_deriv(dϕds_s))
     end
 
     
@@ -508,7 +509,7 @@ function evolve_BK_map(nae::DirectNearAxisEquilibrium, s0::Number, sf::Number; t
     y = zero_SpectralPowerSeries(1,2)
     y[2].a[2] = 1.;
     y = SpatialPowerSeries(y)
-    ρ = PowerSeries_ρ();
+    ρ = PowerSeriesRho();
 
 
     function f!(dx, x, p, t)
@@ -571,7 +572,7 @@ end
 function α_map_residual(G::AbstractVector, ι::FluxPowerSeries, ψ::SpatialPowerSeries, Ftree::AbstractVector)
     res = [SpatialPowerSeries(section_compose(Gi, Ftree)) for Gi in G];
     N = get_N(ψ);
-    ρ = PowerSeries_ρ();
+    ρ = PowerSeriesRho();
     
     ιψ = zero_SpectralPowerSeries(1,N+1)
     ιψ[1] = [2π*ι[1]]
@@ -695,7 +696,7 @@ function flux_leading_order(hx_c, hy_c, nae)
 
     F = full_fourier_matrix(Mc, Ms)
     W = fourier_weight_matrix(Mc, Ms)
-    D = ϕ_deriv_operator(Ms)
+    D = s_deriv_operator(Ms)
 
     Fθ = half_fourier_matrix(2,2)
     hx_c_a2 = hx_c[2].a * inv(Fθ')
@@ -791,8 +792,8 @@ function flux_resid(hx_c, hy_c, nae)
     ψ_c = nae.ψ_c
     ι = nae.ι
 
-    Gpolar = to_Spatial.([ρ_deriv(ξ_s[1]) θ_deriv(ξ_s[1]); 
-                          ρ_deriv(ξ_s[2]) θ_deriv(ξ_s[2])])
+    Gpolar = to_Spatial.([rho_deriv(ξ_s[1]) theta_deriv(ξ_s[1]); 
+                          rho_deriv(ξ_s[2]) theta_deriv(ξ_s[2])])
 
 
     x_s = zero_SpectralPowerSeries(Ms, 2);
@@ -801,7 +802,7 @@ function flux_resid(hx_c, hy_c, nae)
     y_s = similar(x_s);
     y_s[2].a[1,2] = 1.
     y_c = to_Spatial(y_s);
-    ρ = PowerSeries_ρ()
+    ρ = PowerSeriesRho()
 
     polartocart = [x_c/ρ     y_c/ρ; 
                   -y_c/(ρ^2) x_c/(ρ^2)];
@@ -817,12 +818,12 @@ function flux_resid(hx_c, hy_c, nae)
     Jξ = [-ξ_c[2], ξ_c[1]]
     ιJξ = [to_Spectral(flux_compose(ι, ψ_c) * Jξi) for Jξi in Jξ]
 
-    res = ϕ_deriv.(ξ_s) + to_Spectral.(Gh) - ιJξ
+    res = s_deriv.(ξ_s) + to_Spectral.(Gh) - ιJξ
 
     ξinv_s = invert_coordinates(nae.ξ_s; M=Mc)
     ξinvtree = composition_basis(ξinv_s; M=Mc)
     
-    # hξ = ϕ_deriv.(ξ_s) + to_Spectral.(Gh);
+    # hξ = s_deriv.(ξ_s) + to_Spectral.(Gh);
     # [compose(hξi, ξinvtree) for hξi in hξ]
     
     [compose(resi, ξinvtree) for resi in res]
@@ -848,7 +849,7 @@ function get_flux_coordinates(nae::DirectNearAxisEquilibrium)
     y_s = similar(x_s);
     y_s[2].a[1,2] = 1.
     y_c = to_Spatial(y_s);
-    ρ = PowerSeries_ρ();
+    ρ = PowerSeriesRho();
 
     identity_s = [x_s, y_s]
 
@@ -882,12 +883,12 @@ function get_flux_coordinates(nae::DirectNearAxisEquilibrium)
     
     ## Get higher order behavior
     ι0 = nae.ι[1]
-    Dϕ = ϕ_deriv_operator(Ms)
+    Dϕ = s_deriv_operator(Ms)
     J = [0. -1.; 1. 0.]
     minus_ι0J = -ι0*J
     I2 = [1. 0.; 0. 1.]
     for n = 3:Nρ
-        Dθ = θ_deriv_operator(n)
+        Dθ = theta_deriv_operator(n)
         minus_resn = zeros(2, Ms, n); # index resn[ξdim, ϕmode, θmode]
         minus_resn[1, :, :] = -res[1][n].a
         minus_resn[2, :, :] = -res[2][n].a

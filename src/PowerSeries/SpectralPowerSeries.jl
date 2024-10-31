@@ -40,8 +40,9 @@ end
 """ zero_SpectralPowerSeries(M::Integer, N::Integer; p0::Integer = 0)
 
 Return a SpectralPowerSeries object initialized with zero coefficients.
+
 Inputs:
- - `M`: Number of Fourier coefficients in the poloidal ϕ coordinate
+ - `M`: Number of Fourier coefficients in the poloidal s coordinate
  - `N`: Number of coefficients in radial ρ and toroidal θ coordinates
  - `p0`: The leading order ρ coefficient
 
@@ -255,6 +256,13 @@ function SpectralPowerSeries_j!(B::SpectralPowerSeries{T}, A::SpatialPowerSeries
     B[jj] = W \ (Fϕ'*get_a(A[jj])*inv(Fθ'))
 end
 
+"""
+    SpectralPowerSeries(A::SpatialPowerSeries{T}; M::Integer=-1) where {T}
+
+Transform a SpatialPowerSeries to a SpectralPowerSeries of the same order.
+By default, the output uses the same number of Fourier modes as the number of spatial collocation nodes.
+Alternatively, the user can set `M` to choose a different number of modes.
+"""
 function SpectralPowerSeries(A::SpatialPowerSeries{T}; M::Integer=-1) where {T}
     N = get_N(A);
     MA = get_M(A)
@@ -290,10 +298,15 @@ function SpatialPowerSeries_j!(B::SpatialPowerSeries{T}, A::SpectralPowerSeries{
     B[jj] = Fϕ*get_a(A[jj])*Fθ'
 end
 
-## Evaluate Spectral series on collocation nodes
-function SpatialPowerSeries(A::SpectralPowerSeries{T}; M::Integer = -1, N::Integer=-1) where {T}
+"""
+    SpatialPowerSeries(A::SpectralPowerSeries{T}; M::Integer = -1) where {T}
+
+Transform a SpectralPowerSeries to a SpatialPowerSeries of the same order.
+By default, the output uses the same number of collocation nodes as the Fourier modes.
+Alternatively, the user can set `M` to choose a different number of nodes.
+"""
+function SpatialPowerSeries(A::SpectralPowerSeries{T}; M::Integer = -1) where {T}
     NA = get_N(A)
-    # N = (N==-1) ? NA : N;
     N = NA
 
     MA = get_M(A);
@@ -305,17 +318,13 @@ function SpatialPowerSeries(A::SpectralPowerSeries{T}; M::Integer = -1, N::Integ
 
     Fϕ = full_fourier_matrix(M, MA);
 
-    # display(Fϕ)
-    
-    # display(min(N,NA))
-    # display(N)
     for jj = 1:min(N,NA)
         SpatialPowerSeries_j!(B, A, jj, Fϕ)
     end
     B
 end
 
-function ϕ_deriv_operator(M)
+function s_deriv_operator(M)
     A = zeros(M,M);
 
     for m = 2:2:M
@@ -327,7 +336,7 @@ function ϕ_deriv_operator(M)
     A
 end
 
-function ϕ_deriv_j!(dA::SpectralPowerSeries{T}, A::SpectralPowerSeries{T}, jj::Integer) where {T}
+function s_deriv_j!(dA::SpectralPowerSeries{T}, A::SpectralPowerSeries{T}, jj::Integer) where {T}
     M = get_M(dA);
     dAslice = get_a(dA[jj]);
     Aslice = get_a(A[jj]);
@@ -339,19 +348,24 @@ function ϕ_deriv_j!(dA::SpectralPowerSeries{T}, A::SpectralPowerSeries{T}, jj::
     end
 end
 
+"""
+    s_deriv(A::SpectralPowerSeries{T}) where {T}
 
-function ϕ_deriv(A::SpectralPowerSeries{T}) where {T}
-    # println("Untested!!!")
+Takes the derivative of `A` with respect to `s`.
+
+WARNING: currently this function is only defined for an odd number of Fourier modes.
+"""
+function s_deriv(A::SpectralPowerSeries{T}) where {T}
     @assert mod(get_M(A), 2) == 1 # Idk how to handle the even case
     N = get_N(A);
     dA = similar(A);
     for ii = 1:N
-        ϕ_deriv_j!(dA, A, ii)
+        s_deriv_j!(dA, A, ii)
     end
     dA
 end
 
-function θ_deriv_operator(n)
+function theta_deriv_operator(n)
     A = zeros(n,n);
     
     odd = mod(n, 2);
@@ -367,7 +381,7 @@ function θ_deriv_operator(n)
     A
 end
 
-function θ_deriv_j!(dA::SpectralPowerSeries{T}, A::SpectralPowerSeries{T}, jj::Integer) where {T}
+function theta_deriv_j!(dA::SpectralPowerSeries{T}, A::SpectralPowerSeries{T}, jj::Integer) where {T}
     dAslice = dA[jj];
     Aslice = A[jj];
 
@@ -385,22 +399,41 @@ function θ_deriv_j!(dA::SpectralPowerSeries{T}, A::SpectralPowerSeries{T}, jj::
 
 end
 
-function θ_deriv(A::SpectralPowerSeries{T}) where {T}
+"""
+    theta_deriv(A::SpectralPowerSeries{T}) where {T}
+
+Takes the derivative of `A` in the `θ` direction.
+"""
+function theta_deriv(A::SpectralPowerSeries{T}) where {T}
     N = get_N(A);
     dA = similar(A);
     for jj = 1:N
-        θ_deriv_j!(dA, A, jj);
+        theta_deriv_j!(dA, A, jj);
     end
 
     dA
 end
 
+
+"""
+    grad(A::SpectralPowerSeries{T}) where {T}
+
+Returns the "gradient" of `[dA/dρ, dA/dθ, dA/ds]`. 
+Note that for a true gradient, it is necessary to use the metric.
+"""
 function grad(A::SpectralPowerSeries{T}) where {T}
-    [ρ_deriv(A), θ_deriv(A), ϕ_deriv(A)]
+    [rho_deriv(A), theta_deriv(A), s_deriv(A)]
 end
 
+
+"""
+    div(A::SpectralPowerSeries{T}) where {T}
+
+Returns the "divergence" `dA[1]/dρ + dA[2]/dθ + dA[3]/ds`. 
+Note that for a true divergence, it is necessary to use the metric.
+"""
 function div(A::Vector{SpectralPowerSeries{T}}) where {T}
-    ρ_deriv(A[1]) + θ_deriv(A[2]) + ϕ_deriv(A[3])
+    rho_deriv(A[1]) + theta_deriv(A[2]) + s_deriv(A[3])
 end
 
 function distribute_p0!(B::SpectralPowerSeries, A::SpectralPowerSeries, 
@@ -415,43 +448,19 @@ end
 
 
 
-# function unsafe_distribute_p0(A::SpectralPowerSeries, p0::Integer)
-#     p0A = get_p0(A);
-#     offset = p0A - p0;
-#     @assert mod(offset, 2) == 0
-
-#     if offset >= 0
-#         return distribute_p0(A, p0)
-#     end
-
-#     N = get_N(A) + offset
-
-#     B = similar(A; p0, N);
-#     for ii = 1:N
-#         B[ii] = get_a(A[ii-offset])[:, 1:ii]
-#     end
-
-#     B
-# end
-
-
-
 function unsafe_distribute_p0(A::SpectralPowerSeries); unsafe_distribute_p0(A, 0); end
-
-
-
 
 function remove_zeros(series::SpatialPowerSeries; tol=1e-10)
     return SpatialPowerSeries(remove_zeros(SpectralPowerSeries(series); tol))
 end
 
 
-"""
-    evaluate_j(A::SpectralPowerSeries, ρ::AbstractVector,
-                    θ::AbstractVector, ϕ::AbstractVector, jj::Integer)
+# """
+#     evaluate_j(A::SpectralPowerSeries, ρ::AbstractVector,
+#                     θ::AbstractVector, ϕ::AbstractVector, jj::Integer)
 
-Evaluate the SpectralPowerSeriesSlice either on a grid.
-"""
+# Evaluate the SpectralPowerSeriesSlice either on a grid.
+# """
 function evaluate_j(A::SpectralPowerSeries, ρ::AbstractVector,
                     θ::AbstractVector, Φ::AbstractArray, jj::Integer)
     Nρ = length(ρ); Nθ = length(θ); Nϕ = size(Φ,1);
@@ -467,25 +476,25 @@ end
 
 # This is probably typed poorly. We should probably be more careful here
 """
-    evaluate(A::SpectralPowerSeries, ρ::Union{Number, AbstractVector},
-             θ::Union{Number, AbstractVector}, ϕ::Union{Number, AbstractVector})
+    evaluate(A::SpectralPowerSeries, rho::Union{Number, AbstractVector},
+             theta::Union{Number, AbstractVector}, phi::Union{Number, AbstractVector})
 
 Evaluate the SpectralPowerSeries either at a point or on a grid.
 """
-function evaluate(A::SpectralPowerSeries, ρ::Union{Number, AbstractVector},
-                  θ::Union{Number, AbstractVector},
-                  ϕ::Union{Number, AbstractVector})
-    if typeof(ρ) <: Number; return evaluate(A, [ρ], θ, ϕ); end
-    if typeof(θ) <: Number; return evaluate(A, ρ, [θ], ϕ); end
-    if typeof(ϕ) <: Number; return evaluate(A, ρ, θ, [ϕ]); end
+function evaluate(A::SpectralPowerSeries, rho::Union{Number, AbstractVector},
+                  theta::Union{Number, AbstractVector},
+                  phi::Union{Number, AbstractVector})
+    if typeof(rho) <: Number; return evaluate(A, [rho], theta, phi); end
+    if typeof(theta) <: Number; return evaluate(A, rho, [theta], phi); end
+    if typeof(phi) <: Number; return evaluate(A, rho, theta, [phi]); end
 
-    Nρ = length(ρ); Nθ = length(θ); Nϕ = length(ϕ);
+    Nrho = length(rho); Ntheta = length(theta); Nphi = length(phi);
     M = get_M(A);
 
-    a = zeros(Nρ, Nθ, Nϕ)
-    Φ = full_fourier_matrix(ϕ, M)
+    a = zeros(Nrho, Ntheta, Nphi)
+    Phi = full_fourier_matrix(phi, M)
     for jj = 1:get_N(A)
-        a[:,:,:] = a + evaluate_j(A, ρ, θ, Φ, jj)
+        a[:,:,:] = a + evaluate_j(A, rho, theta, Phi, jj)
     end
 
     a
@@ -514,7 +523,7 @@ function section(A::SpectralPowerSeries, ϕ::Number)
 end
 
 """
-    composition_basis(F::AbstractVector)
+    composition_basis(F::AbstractVector{<:SpectralPowerSeries})
 
 Get a basis of the form
 -`[[1], [ρF cos(θF), ρF sin(θF)], [ρF^2, ρF^2 cos(2 θF), ρF^2 sin(2 θF)], ...]`
@@ -523,7 +532,7 @@ from the input of a SpectralPowerSeries
 This can be used in conjunction with the function `compose` to find
 the composition of another SpectralPowerSeries with `F`.
 """
-function composition_basis(F::AbstractVector; M::Integer=-1)
+function composition_basis(F::AbstractVector{<:SpectralPowerSeries}; M::Integer=-1)
     @assert length(F) == 2
     MF = get_M(F[1]);
     @assert get_M(F[2]) == MF;
@@ -578,7 +587,7 @@ end
     compose(A::SpectralPowerSeries, Ftree::AbstractVector)
 
 Compose a SpectralPowerSeries `A` with the basis `Ftree`. See
-`composition_basis` for a method to obtain `Ftree` from a
+[`composition_basis`](@ref) for a method to obtain `Ftree` from a
 change-of-coordinates SpectralPowerSeries `F`.
 """
 function compose(A::SpectralPowerSeries, Ftree::AbstractVector)
@@ -604,7 +613,7 @@ end
     invert_coordinates(F::AbstractVector)
 
 Invert the SpectralPowerSeries coordinate transform `F`. That is, 
-the composition of `F` with the output `G`, then `F∘G(x) ≈ x`
+the composition of `F` with the output `G` satisfies `F∘G(x) ≈ x`
 """
 function invert_coordinates(F::AbstractVector; M::Integer=-1)
     Ms = get_M(F[1]);
@@ -671,102 +680,10 @@ function invert_coordinates(F::AbstractVector; M::Integer=-1)
     G_s
 end
 
-# function SpectralPowerSeries_j!(B::SpectralPowerSeries{T}, A::SpatialPowerSeries{T},
-#     jj::Integer, Fϕ::AbstractArray{T}, W::AbstractArray{T}) where T
-#     Fθ = half_fourier_matrix(jj, jj)
-#     B[jj] = W \ (Fϕ'*get_a(A[jj])*inv(Fθ'))
-# end
-
-
-## This is a partially worked out version with decoupling r and theta modes
-# """
-#     fit_SpectralPowerSeries(a::AbstractArray, r::AbstractVector, M::Integer, N::Integer)
-#
-# Fit a SpectralPowerSeries to the samples of some function (note: this is not
-# smart about the radial interpolation, and would likely require some sort of
-# Zernike shenanigans to be more effective.)
-#
-# input:
-# - `a`: A Nr × Nθ × Nϕ array of function samples. It is assumed that
-#    `a[i,j,k] = f(r[i], θ[j], ϕ[k])`, where `r` is given as input, and `θ` and
-#    `ϕ` are on a uniform grid on `[0,2π)`
-# - `r`: The radial coordinates sampled at
-# - `N`: The order in ρ and θ the series is interpolated to
-# - `M`: The order in ϕ the series is interpolated to
-# """
-# function fit_SpectralPowerSeries(a::AbstractArray, r::AbstractVector,
-#                                  N::Integer, M::Integer)
-#
-# #
-#     Nr, Nθ, Nϕ = size(a)
-#     @assert (Nr ≥ (any(r .== 0.) ? N+1 : N) ) && (Nϕ≥M)
-#     Nmax = maximum([Nr, Nθ])
-#
-#     θ = (0:Nθ-1).*(2π/Nθ)
-#     # We will perform the fit separately in the toroidal direction and
-#     # in the cross section (hopefully this actually solves the least-squares
-#     # problem)
-#
-#     ## Solve the ϕ interpolation problem
-#     ϕ_modes = full_fourier_matrix(Nϕ, M)
-#     Wϕ = fourier_weight_matrix(Nϕ, M)
-#     c1 = reshape(a, Nr*Nθ, Nϕ)*ϕ_modes*inv(Wϕ)
-#
-#     # Testing
-#     ϕ_resid = LinearAlgebra.norm(reshape(a, Nr*Nθ, Nϕ) - c1*ϕ_modes')/(LinearAlgebra.norm(reshape(a, Nr*Nθ, Nϕ))+1e-16)
-#     println("ϕ resid: ", ϕ_resid)
-#
-#     ## Solve the θ interpolation problem
-#     c1 = reshape(c1, Nr, Nθ, M)
-#     θ_modes = full_fourier_matrix(Nθ, N);
-#     display(size(θ_modes))
-#     Wθ = fourier_weight_matrix(Nθ, N)
-#     c2 = mapslices((ci) -> ci*θ_modes*inv(Wθ), c1; dims=[1,2]) # This might be slow
-#
-#     # Testing
-#     display(c1)
-#     display(c2)
-#     display(LinearAlgebra.norm(c1))
-#     display(θ_modes*inv(Wθ)*θ_modes'*θ_modes)
-#     θ_resid = LinearAlgebra.norm( c1 - mapslices((ci) -> ci*θ_modes', c2; dims=[1,2]) )
-#     θ_resid = θ_resid / (LinearAlgebra.norm(reshape(a, Nr*Nθ, Nϕ))+1e-16)
-#     println("θ resid: ", θ_resid)
-#
-#
-# #     rθ_modes = zeros(Nr*Nθ, Nmax*(Nmax+1)÷2)
-# #     k = 1
-# #     for ii = 1:Nmax # Need to use a bunch of modes to resolve the first few r modes
-# #         rθ_modes[:, k:k+ii-1] = kron(half_fourier_matrix(θ, ii), r.^(ii-1))
-# #         k = k+ii
-# #     end
-# #
-# # #     coeffs = rθ_modes \ (reshape(a, Nr*Nθ, Nϕ)*ϕ_modes*inv(Wϕ))
-# #
-# #     ### Begin Testing
-# #     c1 = reshape(a, Nr*Nθ, Nϕ)*ϕ_modes*inv(Wϕ)
-# #     ϕ_resid = LinearAlgebra.norm(reshape(a, Nr*Nθ, Nϕ) - c1*ϕ_modes')/(LinearAlgebra.norm(reshape(a, Nr*Nθ, Nϕ))+1e-16)
-# #     println("ϕ resid: ", ϕ_resid)
-# #     coeffs = rθ_modes\c1
-# #     rθ_resid = LinearAlgebra.norm(c1 - rθ_modes*coeffs)
-# #     println("rθ resid: ", rθ_resid)
-#     ### End Testing
-#
-#     # A = zero_SpectralPowerSeries(M, N; p0 = 0)
-#     # k = 1
-#     # for ii = 1:N
-#     #     A[ii] = coeffs[k:k+ii-1, :]'
-#     #     k = k+ii
-#     # end
-#     #
-#     # A
-# end
-
 """
     fit_SpectralPowerSeries(a::AbstractArray, r::AbstractVector, M::Integer, N::Integer)
 
-Fit a SpectralPowerSeries to the samples of some function (note: this is not
-smart about the radial interpolation, and would likely require some sort of
-Zernike shenanigans to be more effective.)
+Fit a SpectralPowerSeries to the samples of some function.
 
 input:
 - `a`: A Nr × Nθ × Nϕ array of function samples. It is assumed that

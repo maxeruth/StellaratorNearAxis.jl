@@ -37,7 +37,7 @@ end
 """
     +(A::AbstractPowerSeries, B::AbstractPowerSeries)
 
-Add two power series.
+Add two AbstractPowerSeries. May not work for all inputs (e.g. a SpectralPowerSeries and a SpatialPowerSeries).
 """
 function +(A::AbstractPowerSeries, B::AbstractPowerSeries; N::Integer=-1)
     p0 = get_p0(A);
@@ -61,7 +61,7 @@ end
 """
     -(A::AbstractPowerSeries, B::AbstractPowerSeries)
 
-Subtract two power series.
+Subtract two AbstractPowerSeries. May not work for all inputs (e.g. a SpectralPowerSeries and a SpatialPowerSeries).
 """
 function -(A::AbstractPowerSeries, B::AbstractPowerSeries; N::Integer=-1)
     p0 = get_p0(A);
@@ -82,12 +82,12 @@ function -(A::AbstractPowerSeries, B::AbstractPowerSeries; N::Integer=-1)
     C
 end
 
-"""
-    times_j!(C::AbstractPowerSeries{T}, A::AbstractPowerSeries{T},
-             B::AbstractPowerSeries{T}, jj::Integer) where {T}
+# """
+#     times_j!(C::AbstractPowerSeries{T}, A::AbstractPowerSeries{T},
+#              B::AbstractPowerSeries{T}, jj::Integer) where {T}
 
-Set the `jj`th slice of `C` for multiplication (i.e.~`C[jj] = (A*B)[jj]).
-"""
+# Set the `jj`th slice of `C` for multiplication (i.e.~`C[jj] = (A*B)[jj]).
+# """
 function times_j!(C::AbstractPowerSeries{T}, A::AbstractPowerSeries{T},
                   B::AbstractPowerSeries{T}, jj::Integer) where {T}
     #
@@ -99,12 +99,12 @@ end
 
 """
     *(A::AbstractPowerSeries{T}, B::AbstractPowerSeries{T};
-      N::Integer=-1) where {T}
+           N::Integer=-1, careful::Bool=false, careful_tol::Number=1e-12) where {T}
 
 Multiply two power series together to get `C = A*B` to order `N`.
 If `careful==true`, the output order is determined by the leading
-order by which `A` and `B` are nonzero. In this case, the argument 
-for `N` is ignored.
+order by which `A` and `B` are nonzero to tolerance `careful_tol`.
+In this case, the argument for `N` is ignored.
 """
 function *(A::AbstractPowerSeries{T}, B::AbstractPowerSeries{T};
            N::Integer=-1, careful::Bool=false, careful_tol::Number=1e-12) where {T}
@@ -174,22 +174,22 @@ end
 
 """
     /(A::AbstractPowerSeries{T}, B::AbstractPowerSeries{T};
-      N::Integer=-1) where {T}
+           N::Integer=-1, careful::Bool=false, careful_tol::Number=1e-12) where {T}
 
-Divide two power series to get `C = A/B` to order `N`. Currently
-just calls inv() and *()
+Divide two power series to get `C = A/B` to order `N`. 
+Currently just calls inv() and *(), but could potentially be faster with a better method.
 """
 function /(A::AbstractPowerSeries{T}, B::AbstractPowerSeries{T};
            N::Integer=-1, careful::Bool=false, careful_tol::Number=1e-12) where {T}
     *(A,inv(B);N=N,careful,careful_tol)
 end
 
-"""
-    *(A::AbstractPowerSeries, B::AbstractArray{<:AbstractPowerSeries}; 
-           N::Integer=-1, careful::Bool=false, careful_tol::Number=1e-12)
+# """
+#     *(A::AbstractPowerSeries, B::AbstractArray{<:AbstractPowerSeries}; 
+#            N::Integer=-1, careful::Bool=false, careful_tol::Number=1e-12)
 
-Treat multiplying by an AbstractPowerSeries as a scalar over arrays
-"""
+# Treat multiplying by an AbstractPowerSeries as a scalar over arrays
+# """
 function *(A::AbstractPowerSeries, B::AbstractArray{<:AbstractPowerSeries}; 
            N::Integer=-1, careful::Bool=false, careful_tol::Number=1e-12)
     [*(A,Bi;N,careful,careful_tol) for Bi in B]
@@ -224,18 +224,9 @@ function *(A::AbstractMatrix{<:AbstractPowerSeries},
     C
 end
 
-# function *(A::Union{Adjoint{T, <:AbstractVector} where T<:AbstractPowerSeries, Transpose{T, <:AbstractVector} where T<:AbstractPowerSeries}, 
-#            B::AbstractVector{<:AbstractPowerSeries};
-#            N::Union{Integer,AbstractVector}=-1, 
-#            careful::Bool=false, careful_tol::Number=1e-12)
-
-#            Amat = Matrix(A)
-#     *(Amat,B;N,careful,careful_tol)[1]
-# end
-
-"""
-    *(A::AbstractMatrix{<:AbstractPowerSeries}, B::AbstractMatrix{<:AbstractPowerSeries}; N::Union{Integer,AbstractMatrix}=-1) where {T,S}
-"""
+# """
+#     *(A::AbstractMatrix{<:AbstractPowerSeries}, B::AbstractMatrix{<:AbstractPowerSeries}; N::Union{Integer,AbstractMatrix}=-1) where {T,S}
+# """
 function *(A::AbstractMatrix{<:AbstractPowerSeries}, 
            B::AbstractMatrix{<:AbstractPowerSeries}; 
            N::Union{Integer,AbstractMatrix}=-1, 
@@ -263,12 +254,12 @@ end
 
 
 
-"""
-    inv_j!(B::AbstractPowerSeries{T}, A::AbstractPowerSeries{T},
-                jj::Integer) where {T}
+# """
+#     inv_j!(B::AbstractPowerSeries{T}, A::AbstractPowerSeries{T},
+#                 jj::Integer) where {T}
 
-Get the `jj`th entry of the inverse of `A` (i.e. `B[jj] = (inv(A))[jj]`)
-"""
+# Get the `jj`th entry of the inverse of `A` (i.e. `B[jj] = (inv(A))[jj]`)
+# """
 function inv_j!(B::AbstractPowerSeries{T}, A::AbstractPowerSeries{T},
                 jj::Integer) where {T}
     if jj == 1
@@ -286,7 +277,7 @@ end
 """
     inv(A::AbstractPowerSeries; N::Integer = -1)
 
-Find the multiplicative inverse of `A` to order `N`. Should satisfy `A*inv(A)=1`
+Find the multiplicative inverse of `A` to order `N`. Approximately satisfies `A*inv(A)=1`
 """
 function inv(A::AbstractPowerSeries; N::Integer = -1)
     p0 = - get_p0(A);
@@ -300,40 +291,40 @@ function inv(A::AbstractPowerSeries; N::Integer = -1)
 end
 
 
-"""
-    exp_j!(B::AbstractPowerSeries{T}, A::AbstractPowerSeries{T}, α::T,
-                jj::Integer) where {T}
+# """
+#     exp_j!(B::AbstractPowerSeries{T}, A::AbstractPowerSeries{T}, alpha::T,
+#                 jj::Integer) where {T}
 
-Get the `jj`th entry of e^(αA)
-"""
-function exp_j!(B::AbstractPowerSeries{T}, A::AbstractPowerSeries{T}, α::T,
+# Get the `jj`th entry of e^(alpha A)
+# """
+function exp_j!(B::AbstractPowerSeries{T}, A::AbstractPowerSeries{T}, alpha::T,
                 jj::Integer) where {T}
     if jj == 1
-        B[1] = exp.(α.*get_a(A[1]));
+        B[1] = exp.(alpha.*get_a(A[1]));
     else
-        B[jj] = (α/(jj - 1))*A[2]*B[jj-1]
+        B[jj] = (alpha/(jj - 1))*A[2]*B[jj-1]
         for kk = 3:jj
-            B[jj] = B[jj] + (α*(kk-1)/(jj - 1))*A[kk]*B[jj-kk+1]
+            B[jj] = B[jj] + (alpha*(kk-1)/(jj - 1))*A[kk]*B[jj-kk+1]
         end
     end
 end
 
 """
-    exp(A::AbstractPowerSeries{T}[, α::T]; N::Integer = -1) where {T}
+    exp(A::AbstractPowerSeries{T}[, alpha::T]; N::Integer = -1) where {T}
 
 Exponentiate the power series `A` to get `e^(αA)` to order `N`.
 """
-function exp(A::AbstractPowerSeries{T}, α::T; N::Integer = -1) where {T}
+function exp(A::AbstractPowerSeries{T}, alpha::T; N::Integer = -1) where {T}
     p0 = get_p0(A);
     if p0>0
-        return exp(distribute_p0(A), α)
+        return exp(distribute_p0(A), alpha)
     end
     @assert get_p0(A) == 0
 
     N = (N == -1) ? get_N(A) : N
     B = similar(A; N)
     for jj = 1:N
-        exp_j!(B, A, α, jj);
+        exp_j!(B, A, alpha, jj);
     end
 
     B
@@ -344,31 +335,31 @@ function exp(A::AbstractPowerSeries{T}; N::Integer = -1) where {T}
 end
 
 """
-    sinh(A::AbstractPowerSeries{T}[, α::T]) where {T}
+    sinh(A::AbstractPowerSeries{T}[, alpha::T]) where {T}
 
 Find `sinh(αA) = (e^(αA) - e^(-αA))/2`
 """
-function sinh(A::AbstractPowerSeries{T}, α::T) where {T}
-    0.5*(exp(A, α) - exp(A, -α))
+function sinh(A::AbstractPowerSeries{T}, alpha::T) where {T}
+    0.5*(exp(A, alpha) - exp(A, -alpha))
 end
 function sinh(A::AbstractPowerSeries{T}) where {T}; sinh(A, one(T)); end
 
 """
-    cosh(A::AbstractPowerSeries{T}[, α::T]) where {T}
+    cosh(A::AbstractPowerSeries{T}[, alpha::T]) where {T}
 
 Find `cosh(αA) = (e^(αA) + e^(-αA))/2`.
 """
-function cosh(A::AbstractPowerSeries{T}, α::T) where {T}
-    0.5*(exp(A, α) + exp(A, -α))
+function cosh(A::AbstractPowerSeries{T}, alpha::T) where {T}
+    0.5*(exp(A, alpha) + exp(A, -alpha))
 end
 function cosh(A::AbstractPowerSeries{T}) where {T}; cosh(A, one(T)); end
 
-"""
-    sincos_j!(S::AbstractPowerSeries{T}, C::AbstractPowerSeries{T},
-              A::AbstractPowerSeries{T}, ω::Number, jj::Integer) where {T}
+# """
+#     sincos_j!(S::AbstractPowerSeries{T}, C::AbstractPowerSeries{T},
+#               A::AbstractPowerSeries{T}, ω::Number, jj::Integer) where {T}
 
-Simultaneously computes the `jj`th entry of sin(ωA) and cos(ωA).
-"""
+# Simultaneously computes the `jj`th entry of sin(ωA) and cos(ωA).
+# """
 function sincos_j!(S::AbstractPowerSeries{T}, C::AbstractPowerSeries{T},
                    A::AbstractPowerSeries{T}, ω::Number, jj::Integer) where {T}
     if jj == 1
@@ -394,7 +385,7 @@ require both)
 function sincos(A::AbstractPowerSeries, ω::Number)
     p0 = get_p0(A);
     if p0>0
-        return exp(distribute_p0(A), α)
+        return exp(distribute_p0(A), alpha)
     end
     @assert get_p0(A) == 0
 
@@ -432,20 +423,20 @@ function cos(A::AbstractPowerSeries, ω::Number)
 end
 function cos(A::AbstractPowerSeries{T}) where {T}; cos(A, one(T)); end
 
-"""
-    power_j!(B::AbstractPowerSeries{T}, A::AbstractPowerSeries{T}, α::Number,
-             jj::Integer) where {T}
+# """
+#     power_j!(B::AbstractPowerSeries{T}, A::AbstractPowerSeries{T}, alpha::Number,
+#              jj::Integer) where {T}
 
-Get the `jj`th entry of A^α, i.e. `B[jj] = (A^α)[jj]`.
-"""
+# Get the `jj`th entry of A^α, i.e. `B[jj] = (A^α)[jj]`.
+# """
 function power_j!(B::AbstractPowerSeries{T}, A::AbstractPowerSeries{T},
-                  α::Number, jj::Integer) where {T}
+                  alpha::Number, jj::Integer) where {T}
     if jj == 1
-        B[1] = get_a(A[1]).^α
+        B[1] = get_a(A[1]).^alpha
     else
-        B[jj] = one(T)*α*(jj-1)*A[jj]*B[1];
+        B[jj] = one(T)*alpha*(jj-1)*A[jj]*B[1];
         for kk = 1:jj-2
-            B[jj] = B[jj] + one(T)*(α*(jj-kk-1) - (kk))*B[kk+1]*A[jj-kk];
+            B[jj] = B[jj] + one(T)*(alpha*(jj-kk-1) - (kk))*B[kk+1]*A[jj-kk];
         end
 
         if typeof(B)<:FluxPowerSeries
@@ -457,33 +448,35 @@ function power_j!(B::AbstractPowerSeries{T}, A::AbstractPowerSeries{T},
 end
 
 """
-    ^(A::AbstractPowerSeries, α::Number; N::Integer=-1)
+    ^(A::AbstractPowerSeries, alpha::Number; N::Integer=-1)
 
 Raise `A` to the power α to `N` terms in the power series, i.e. compute `A^α`.
 """
-function ^(A::AbstractPowerSeries, α::Number; N::Integer=-1)
+function ^(A::AbstractPowerSeries, alpha::Number; N::Integer=-1)
     p0 = get_p0(A);
-    if !(typeof(α) <: Integer)
+    if !(typeof(alpha) <: Integer)
         @assert p0 == 0
     else
-        p0 = p0*α
+        p0 = p0*alpha
     end
     N = (N == -1) ? get_N(A) : N;
     B = similar(A; p0, N);
 
     for jj = 1:N
-        power_j!(B, A, α, jj);
+        power_j!(B, A, alpha, jj);
     end
 
     B
 end
 
-"""
-    cross(a::Vector{S}, b::Vector{T}) where
-          {S <: AbstractPowerSeries, T<:AbstractPowerSeries}
+# """
+#     LinearAlgebra.cross(a::Vector{S}, b::Vector{T}; Ns=[-1,-1,-1],
+#             careful::Bool=false, careful_tol::Number=1e-12) where
+#             {S <: Union{AbstractPowerSeries}, 
+#             T <: Union{AbstractPowerSeries, Number}}
 
-Performs the cross product between two 3-vectors of power series.
-"""
+# Performs the cross product between two 3-vectors of power series.
+# """
 function LinearAlgebra.cross(a::Vector{S}, b::Vector{T}; Ns=[-1,-1,-1],
                              careful::Bool=false, careful_tol::Number=1e-12) where
              {S <: Union{AbstractPowerSeries}, 
@@ -507,11 +500,11 @@ function LinearAlgebra.cross(a::Vector{S}, b::Vector{T}; Ns=[-1,-1,-1],
 end
 
 
-"""
-    dot(a::Vector{<:AbstractPowerSeries}, b::Vector{<:AbstractPowerSeries})
+# """
+#     dot(a::Vector{<:AbstractPowerSeries}, b::Vector{<:AbstractPowerSeries})
 
-Performs the dot product between two 3-vectors of power series.
-"""
+# Performs the dot product between two 3-vectors of power series.
+# """
 function LinearAlgebra.dot(a::Vector{<:AbstractPowerSeries}, b::Vector{<:AbstractPowerSeries}; 
                            N::Integer=-1, careful::Bool=false, careful_tol::Number=1e-12)
     @assert length(a) == 3
@@ -537,11 +530,11 @@ function adjoint(A::AbstractPowerSeries{T}) where {T<:Complex}
     B
 end
 
-"""
-    adjoint(A::AbstractPowerSeries{T}) where {T<:Complex}
+# """
+#     adjoint(A::AbstractPowerSeries{T}) where {T<:Complex}
 
-Finds the adjoint of a real power series.
-"""
+# Finds the adjoint of a real power series.
+# """
 function adjoint(A::AbstractPowerSeries{T}) where {T<:Real}
     A
 end
@@ -551,17 +544,18 @@ end
     norm(A::Vector{S}) where {S <: AbstractPowerSeries}
 
 Returns the norm of a power series `A`, i.e. `(A'*A)^0.5`.
+For a norm of the elements of `A`, see [`Fnorm`](@ref).
 """
 function LinearAlgebra.norm(A::Vector{S}) where {S <: AbstractPowerSeries}
     (dot(A,A))^0.5
 end
 
-"""
-    *(a::S, b::Vector) where {S <: AbstractPowerSeries}
+# """
+#     *(a::S, b::Vector) where {S <: AbstractPowerSeries}
 
-Multiplies each entry of a vector by a power series.
-"""
-function *(a::S, b::Vector) where {S <: AbstractPowerSeries}
+# Multiplies each entry of a vector by a power series.
+# """
+function *(a::S, b::AbstractVector) where {S <: AbstractPowerSeries}
     [a*bi for bi in b]
 end
 
@@ -571,15 +565,6 @@ end
 Performs the surface integral ∫A dθ dϕ.
 """
 function surface_integrate(A::AbstractPowerSeries{T}; N::Integer=-1) where {T}
-    # # Get the value of `N` from `A`. Note that series that take every order of
-    # # `ρ` will have zero surface integrals for odd powers of `ρ`.
-    # NA = get_N(A);
-    # if typeof(A) <: Union{SpatialPowerSeries, SpectralPowerSeries}
-    #     NA = (NA+1) ÷ 2
-    # end
-
-    # N = (N == -1) ? NA : N;
-
     N = get_N(A);
 
     p0 = get_p0(A);
@@ -592,40 +577,40 @@ function surface_integrate(A::AbstractPowerSeries{T}; N::Integer=-1) where {T}
     B
 end
 
-"""
-    ρ_deriv_j!(dA::AbstractPowerSeries{T}, A::AbstractPowerSeries{T},
-               jj::Integer) where {T}
+# """
+#     rho_deriv_j!(dA::AbstractPowerSeries{T}, A::AbstractPowerSeries{T},
+#                jj::Integer) where {T}
 
-Finds the `jj`th entry of the derivative of `A` with respect to `ρ`, i.e.
-`dA[jj] = (dA/dρ)[jj]`.
-"""
-function ρ_deriv_j!(dA::AbstractPowerSeries{T}, A::AbstractPowerSeries{T},
+# Finds the `jj`th entry of the derivative of `A` with respect to `ρ`, i.e.
+# `dA[jj] = (dA/dρ)[jj]`.
+# """
+function rho_deriv_j!(dA::AbstractPowerSeries{T}, A::AbstractPowerSeries{T},
                     jj::Integer) where {T}
     p0 = get_p0(A);
     dA[jj] = (jj - one(T) + p0) * A[jj]
 end
 
 """
-    ρ_deriv(A::AbstractPowerSeries{T}) where {T}
+    rho_deriv(A::AbstractPowerSeries{T}) where {T}
 
 Finds the derivative of `A` with respect to `ρ`.
 """
-function ρ_deriv(A::AbstractPowerSeries{T}) where {T}
+function rho_deriv(A::AbstractPowerSeries{T}) where {T}
     # println("Untested!!!")
     p0 = get_p0(A)-1;
     dA = similar(A; p0)
     for jj = 1:get_N(A)
-        ρ_deriv_j!(dA, A, jj)
+        rho_deriv_j!(dA, A, jj)
     end
 
     dA
 end
 
-"""
-    ρ_integrate_j!(intA::AbstractPowerSeries{T}, A::AbstractPowerSeries{T},
-                        jj::Integer) where {T}
-"""
-function ρ_integrate_j!(intA::AbstractPowerSeries{T}, A::AbstractPowerSeries{T},
+# """
+#     rho_integrate_j!(intA::AbstractPowerSeries{T}, A::AbstractPowerSeries{T},
+#                         jj::Integer) where {T}
+# """
+function rho_integrate_j!(intA::AbstractPowerSeries{T}, A::AbstractPowerSeries{T},
                         jj::Integer) where {T}
     p0 = get_p0(A);
     # println("jj = $jj, one(T)/(jj + 1 + p0) = $(one(T)/(jj + 1 + p0)), A[jj] = $(A[jj])")
@@ -633,18 +618,18 @@ function ρ_integrate_j!(intA::AbstractPowerSeries{T}, A::AbstractPowerSeries{T}
 end
 
 """
-    ρ_integrate(A::AbstractPowerSeries{T}) where {T}
+    rho_integrate(A::AbstractPowerSeries{T}) where {T}
 
 Perform the integral
     `B(r) = ∫₀ʳ A(ρ) ρ dρ`
-See `ρ_antideriv` for the integral without the integrating factor.
+See [`ρ_antideriv`](@ref) for the integral without the integrating factor.
 """
-function ρ_integrate(A::AbstractPowerSeries{T}) where {T}
+function rho_integrate(A::AbstractPowerSeries{T}) where {T}
     # println("Untested!!!")
     p0 = get_p0(A)+2;
     intA = similar(A; p0)
     for jj = 1:get_N(A)
-        ρ_integrate_j!(intA, A, jj)
+        rho_integrate_j!(intA, A, jj)
     end
 
     intA
@@ -655,7 +640,7 @@ end
 
 Perform the integral
     `B(r) = ∫₀ʳ A(ρ) dρ`
-(note: unlike `ρ_integrate`, which includes an integrating factor
+(note: unlike [`rho_integrate`](@ref), which includes an integrating factor
 for analytic integrals)
 """
 function ρ_antideriv(A::AbstractPowerSeries{T}) where {T}
@@ -673,14 +658,20 @@ end
 """
     volume_integate(A::AbstractPowerSeries{T}; N::Integer=-1) where {T}
 
-
+Integral over a volume. Implemented by composing [`rho_integrate`](@ref) with
+[`surface_integrate`](@ref).
 """
 function volume_integrate(A::AbstractPowerSeries{T}; N::Integer=-1) where {T}
-    return ρ_integrate(surface_integrate(A;N))
+    return rho_integrate(surface_integrate(A;N))
 end
 
 
-# Frobenius norm of the coefficients, used for checking equality
+"""
+    Fnorm(A::AbstractPowerSeries{T}) where {T}
+
+Frobenius norm of the elements of `A`. 
+Useful for determining approximate equality of AbstractPowerSeries.
+"""
 function Fnorm(A::AbstractPowerSeries{T}) where {T}
     my_norm = zero(T);
     for ii = 1:get_N(A);
@@ -731,8 +722,10 @@ end
 """
     remove_zeros(A::AbstractPowerSeries, tol=1e-10)
 
-Removes all orders that are zeros, i.e. `norm(A[order].a < tol)`.
-Use this to fix NaN's when inverting, or can't `^2` a A.
+If one has access to a power series `A = ρ^2N B`, returns the 
+power series `B`. For example, when the polar Laplacian is 
+applied to a series, the output has zeros in the first two
+orders. This removes those zeros.
 """
 function remove_zeros(A::AbstractPowerSeries; tol=1e-10)
     p0 = get_p0(A)
@@ -759,7 +752,8 @@ end
 """ 
     L2norm(A::AbstractPowerSeries, δ::Number)
 
-Find the L2 norm of a power series.
+Find the L2 norm of a power series via near-axis operations.
+NOTE: this is not the true L2 norm; just the near-axis approximation of it.
 """
 function L2norm(A::AbstractPowerSeries, δ::Number)
     sqrt(evaluate(volume_integrate(A'*A),δ))

@@ -27,12 +27,12 @@ end
 export FluxPowerSeries, get_N, get_a, zero_FluxPowerSeries, fourier_matrix,
        zero_SpatialPowerSeries, zero_SpectralPowerSeries, set_slice!,
        SpectralPowerSeries, SpatialPowerSeries, view_slice, get_slice,
-       composition_basis, compose, invert_coordinates, ϕ_deriv, θ_deriv, get_p0, 
-       Fnorm, L2norm, PowerSeries_ρ, AbstractPowerSeries, ZeroPowerSeries, 
-       IdentityPowerSeries, vacuum_update_B, vacuum_residual, grad, div, ρ_deriv, 
+       composition_basis, compose, invert_coordinates, s_deriv, theta_deriv, get_p0, 
+       Fnorm, L2norm, PowerSeriesRho, AbstractPowerSeries, ZeroPowerSeries, 
+       IdentityPowerSeries, vacuum_update_B, vacuum_residual, grad, div, rho_deriv, 
        get_IC_from_eq, vacuum_solve, get_flux_coordinates, change_order, 
        remove_zeros, evaluate, section, section_composition_basis, 
-       section_compose, fit_SpectralPowerSeries, surface_integrate, ρ_integrate, 
+       section_compose, fit_SpectralPowerSeries, surface_integrate, rho_integrate, 
        volume_integrate
 
 export DirectNearAxisEquilibrium, InitialVacuumNearAxisEquilibrium, to_arclength,

@@ -24,7 +24,7 @@ function evaluate(x::AbstractArray{T}, c::Coil, M::Integer) where {T}
     @assert K == 3
 
     r0_s = c.r0;
-    dr0_s = ϕ_deriv.(r0_s);
+    dr0_s = s_deriv.(r0_s);
 
     r0_c = to_Spatial.(r0_s);
     dr0_c = to_Spatial.(dr0_s);
@@ -72,7 +72,7 @@ end
 
 # function axis_residual(r0::AbstractVector, cs::Vector{Coil}, Mc::Integer, Mcoil::Integer, x0::Number)
 #     r0_c = [SpatialPowerSeries(ri, M=Mc) for ri in r0]
-#     r0p_c = [SpatialPowerSeries(ϕ_deriv(ri), M=Mc) for ri in r0]
+#     r0p_c = [SpatialPowerSeries(s_deriv(ri), M=Mc) for ri in r0]
 
 #     X = vcat([ri[1].a[:]' for ri in r0_c]...)
 #     dX = vcat([ri[1].a[:]' for ri in r0p_c]...)
@@ -251,7 +251,7 @@ function get_field_on_axis(r0::AbstractVector, cs::Vector{Coil}, Mc::Number, N::
     y_s = similar(x_s);
     y_s[2].a[1,2] = 1.
     y_c = to_Spatial(y_s);
-    ρ = PowerSeries_ρ()
+    ρ = PowerSeriesRho()
 
     hinv = inv(*(ℓp_c, 1. - *(κ_c, x_c; N=2); N=N))
     display(hinv)
@@ -274,7 +274,7 @@ function get_field_on_axis(r0::AbstractVector, cs::Vector{Coil}, Mc::Number, N::
     for c in cs
         # Get the necessary coil information
         c0_s = c.r0;
-        dc0_s = ϕ_deriv.(c0_s);
+        dc0_s = s_deriv.(c0_s);
 
         c0_c = [SpatialPowerSeries(ci; M=Mcoil) for ci in c0_s];
         dc0_c = [SpatialPowerSeries(ci; M=Mcoil) for ci in dc0_s];
