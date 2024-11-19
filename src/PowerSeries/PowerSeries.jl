@@ -269,6 +269,12 @@ function /(A::AbstractPowerSeries{T}, ρ::PowerSeriesRho) where {T}
     A*inv(ρ)
 end
 
+"""
+    change_order(A::AbstractPowerSeries{T}, N::Integer) where {T}
+
+Creates a new PowerSeries with the coefficients of `A` with 
+order `N`. If `N > get_N(A)`, the extra coefficients are set to zero.
+"""
 function change_order(A::AbstractPowerSeries{T}, N::Integer) where {T}
     B = similar(A; N)
     M = min(N, get_N(A))

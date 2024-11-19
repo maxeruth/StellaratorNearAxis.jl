@@ -3,6 +3,8 @@
 
 The struct used to represent an equilibrium of the direct near-axis expansion in vacuum.
 See [`InitialVacuumNearAxisEquilibrium`](@ref) to initialize the equilibrium.
+See `DirectFS.jl` for member descriptions. We use the convention that `_s` refers to 
+SpectralPowerSeries and `_c` for SpatialPowerSeries (`c` for `collocation`).
 """
 struct DirectNearAxisEquilibrium
     # Orders
@@ -13,13 +15,13 @@ struct DirectNearAxisEquilibrium
     # Geometric Quantities
     r0_s::Vector   # Axis
     r0_c::Vector
-    ℓp_s::SpectralPowerSeries           # Rate of travel along axis
-    ℓp_c::SpatialPowerSeries
-    ℓp_ave::Number                      # Working in arclength coordinates, constant rate of travel
-    κ_s::SpectralPowerSeries            # Axis curvature
-    κ_c::SpatialPowerSeries
-    τ_s::SpectralPowerSeries            # Axis torsion
-    τ_c::SpatialPowerSeries
+    ellp_s::SpectralPowerSeries           # Rate of travel along axis
+    ellp_c::SpatialPowerSeries
+    ellp_ave::Number                      # Working in arclength coordinates, constant rate of travel
+    kappa_s::SpectralPowerSeries            # Axis curvature
+    kappa_c::SpatialPowerSeries
+    tau_s::SpectralPowerSeries            # Axis torsion
+    tau_c::SpatialPowerSeries
     Q_s::Matrix       # Frenet-Serret Unit Vectors
     Q_c::Matrix
     g_s::Matrix   # Metric
@@ -39,20 +41,20 @@ struct DirectNearAxisEquilibrium
     # # Equilibrium quantities
     B_s::Vector # Magnetic field
     B_c::Vector
-    ϕ_s::SpectralPowerSeries         # Magnetic potential (for divergence free part)
-    ϕ_c::SpatialPowerSeries
+    phi_s::SpectralPowerSeries         # Magnetic potential (for divergence free part)
+    phi_c::SpatialPowerSeries
 
-    dϕ_s::Vector
+    dphi_s::Vector
     BK_s::Vector # Regularized magnetic field
     BK_c::Vector 
     #
     # Derived quantities
-    ψ_s::SpectralPowerSeries
-    ψ_c::SpatialPowerSeries
+    psi_s::SpectralPowerSeries
+    psi_c::SpatialPowerSeries
 
-    ξ_s::Vector
-    ξ_c::Vector
-    ι::FluxPowerSeries                # Rotation number
+    xi_s::Vector
+    xi_c::Vector
+    iota::FluxPowerSeries                # Rotation number
 
     # Regularization Quantities
     K_reg::Integer # Characteristic number of Fourier modes to resolve
@@ -67,31 +69,31 @@ function to_arclength(r0_s::Vector{SpectralPowerSeries{T}}, Mc::Integer) where {
 
     r0p_s = s_deriv.(r0_s)
     r0p_c = [SpatialPowerSeries(ri; M = Mc) for ri in r0p_s]
-    ℓp_c = norm(r0p_c)
-    ℓp_s = SpectralPowerSeries(ℓp_c; M=Ms)
+    ellp_c = norm(r0p_c)
+    ellp_s = SpectralPowerSeries(ellp_c; M=Ms)
     
     # Solve ∂ₜ(ℓ) = ℓ'(t) to find the length of the curve
-    function f_ℓp!(dt, ℓ, p, t)
-        dt[:] = evaluate(ℓp_s, 0.0, 0.0, t)
+    function f_ellp!(dt, ell, p, t)
+        dt[:] = evaluate(ellp_s, 0.0, 0.0, t)
     end
-    ℓ0 = [0.0];
+    ell0 = [0.0];
     tspan = (0.0, 2π);
-    prob = ODEProblem(f_ℓp!, ℓ0, tspan)
+    prob = ODEProblem(f_ellp!, ell0, tspan)
 
     sol = solve(prob, Tsit5(), reltol = 1e-12, abstol = 1e-12);
     L = sol(2π);
     # display(sol)
     # display(L)
-    # display(ℓp_c)
+    # display(ellp_c)
 
 
     # Solve ∂ₛt = (L/2π) * (∂ₜℓ)⁻¹
-    function f_ℓp_inv!(dt, t, p, s)
-        dt[:] = (L/(2π)) ./ evaluate(ℓp_s, 0.0, 0.0, t);
+    function f_ellp_inv!(dt, t, p, s)
+        dt[:] = (L/(2π)) ./ evaluate(ellp_s, 0.0, 0.0, t);
     end
     t0 = [0.0];
     sspan = (0.0, 2π);
-    prob = ODEProblem(f_ℓp_inv!, t0, sspan);
+    prob = ODEProblem(f_ellp_inv!, t0, sspan);
     
     sol = solve(prob, Tsit5(), reltol = 1e-12, abstol = 1e-12);
 
@@ -108,7 +110,7 @@ function to_arclength(r0_s::Vector{SpectralPowerSeries{T}}, Mc::Integer) where {
     [SpectralPowerSeries(ri; M=Ms) for ri in r0_arclength_c]
 end
 
-function get_κτ(r0_s::Vector{SpectralPowerSeries{T}}, Mc::Integer) where {T}
+function get_kappatau(r0_s::Vector{SpectralPowerSeries{T}}, Mc::Integer) where {T}
     Ms = get_M(r0_s[1])
     r0_c = [SpatialPowerSeries(ri; M = Mc) for ri in r0_s]
     r0p_s = s_deriv.(r0_s)
@@ -119,31 +121,31 @@ function get_κτ(r0_s::Vector{SpectralPowerSeries{T}}, Mc::Integer) where {T}
     r0ppp_c = [SpatialPowerSeries(ri; M = Mc) for ri in r0ppp_s]
 
 
-    ℓp_c = norm(r0p_c);
-    ℓp_s = SpectralPowerSeries(ℓp_c; M=Ms)
-    ℓp_ave = sum(ℓp_c[1].a)/length(ℓp_c[1].a);
+    ellp_c = norm(r0p_c);
+    ellp_s = SpectralPowerSeries(ellp_c; M=Ms)
+    ellp_ave = sum(ellp_c[1].a)/length(ellp_c[1].a);
 
     rp_times_rpp = cross(r0p_c, r0pp_c);
     norm_rp_times_rpp = norm(rp_times_rpp);
 
-    # κ = ||r' × r''|| / ||r'||^3
-    κ_c = norm_rp_times_rpp * ℓp_c^(-3.)
-    κ_s = SpectralPowerSeries(κ_c; M=Ms)
+    # kappa = ||r' × r''|| / ||r'||^3
+    kappa_c = norm_rp_times_rpp * ellp_c^(-3.)
+    kappa_s = SpectralPowerSeries(kappa_c; M=Ms)
 
     # τ = ((r' × r'') ⋅ r''') / ||r' × r''||^2
-    τ_c = dot(rp_times_rpp, r0ppp_c) * norm_rp_times_rpp^(-2.)
-    τ_s = SpectralPowerSeries(τ_c; M=Ms)
+    tau_c = dot(rp_times_rpp, r0ppp_c) * norm_rp_times_rpp^(-2.)
+    tau_s = SpectralPowerSeries(tau_c; M=Ms)
 
     # Orthogonal Frame
     Q_c = Matrix{AbstractPowerSeries}(undef, 3, 3)
-    Q_c[:, 3] = [r0p_c[ii] * inv(ℓp_c) for ii = 1:3]
+    Q_c[:, 3] = [r0p_c[ii] * inv(ellp_c) for ii = 1:3]
     Q_c[:, 1] = cross(r0p_c, cross(r0pp_c, r0p_c))
-    Q_c[:, 1] = [ni * inv(norm_rp_times_rpp) * inv(ℓp_c) for ni in Q_c[:,1]]
+    Q_c[:, 1] = [ni * inv(norm_rp_times_rpp) * inv(ellp_c) for ni in Q_c[:,1]]
     Q_c[:, 2] = cross(Q_c[:,3], Q_c[:,1])
 
     Q_s = [SpectralPowerSeries(Q_c[ii,jj]; M=Ms) for ii = 1:3, jj = 1:3]
 
-    r0_c, ℓp_s, ℓp_c, ℓp_ave, κ_s, κ_c, τ_s, τ_c, Q_s, Q_c
+    r0_c, ellp_s, ellp_c, ellp_ave, kappa_s, kappa_c, tau_s, tau_c, Q_s, Q_c
 end
 
 function initial_metric_matrix()
@@ -156,8 +158,8 @@ function initial_metric_matrix()
     g
 end
 
-function get_FS_metric(Nρ::Integer, ℓp_c::SpatialPowerSeries{T},
-               κ_c::SpatialPowerSeries{T}, τ_c::SpatialPowerSeries{T},
+function get_FS_metric(Nρ::Integer, ellp_c::SpatialPowerSeries{T},
+               kappa_c::SpatialPowerSeries{T}, tau_c::SpatialPowerSeries{T},
                Ms::Integer) where {T}
     ρ = PowerSeriesRho()
     ρ2 = ρ^2;
@@ -167,19 +169,19 @@ function get_FS_metric(Nρ::Integer, ℓp_c::SpatialPowerSeries{T},
     ginv_s = initial_metric_matrix()
 
     # g_c
-    Mc = get_M(ℓp_c)
+    Mc = get_M(ellp_c)
     hs = zero_SpatialPowerSeries(Mc, 2);
     hs[1] = ones(T, Mc);
-    hs[2] = -κ_c[1].a * (cos.([0, 2π/3]))'
+    hs[2] = -kappa_c[1].a * (cos.([0, 2π/3]))'
 
-    M = get_M(κ_c);
+    M = get_M(kappa_c);
     # g = [ρ²    , ℓ'τρ²
     #      ℓ'τρ² , (ℓ')²(hₛ² + ρ²τ²)    ]
     g_c[2,2] = ρ2*zero_SpatialPowerSeries(T, M, Nρ)
     g_c[2,2][1] = ones(T, M);
-    g_c[2,3] = ρ2*(*(ℓp_c, τ_c; N=Nρ))
-    g_c[3,2] = ρ2*(*(ℓp_c, τ_c; N=Nρ))
-    g_c[3,3] = *(*(hs, hs; N=3) + ρ2*(*(τ_c,τ_c; N=3)), ℓp_c*ℓp_c; N=Nρ)
+    g_c[2,3] = ρ2*(*(ellp_c, tau_c; N=Nρ))
+    g_c[3,2] = ρ2*(*(ellp_c, tau_c; N=Nρ))
+    g_c[3,3] = *(*(hs, hs; N=3) + ρ2*(*(tau_c,tau_c; N=3)), ellp_c*ellp_c; N=Nρ)
 
     # rootg
     rootg_c = ρ*((ρ^-2)*(g_c[2,2]*g_c[3,3] - g_c[2,3]*g_c[3,2]))^0.5;
@@ -208,6 +210,21 @@ function get_FS_metric(Nρ::Integer, ℓp_c::SpatialPowerSeries{T},
     g_s, g_c, ginv_s, ginv_c, rootg_s, rootg_c, rootginv_s, rootginv_c
 end
 
+"""
+    InitialVacuumNearAxisEquilibrium(r0_s::Vector{SpectralPowerSeries{T}},
+               Nρ::Integer, Mc::Integer, B0_s::SpectralPowerSeries{T}, 
+               K_reg::Integer, N_reg::Integer) where {T}
+
+Initialize a DirectNearAxisEquilibrium, which can then be solved via [`vacuum_solve`](@ref).
+Input:
+- `r0_s`: The axis `r0`. The number of spectral modes determines the number of modes `Ms` for other
+    SpectralPowerSeries objects.
+- `Nρ`: The order of the series
+- `Mc`: The number of collocation nodes for SpatialPowerSeries in the pseudospectral method
+- `B0_s`: The on-axis magnetic field magnitude
+- `K_reg`: The regularization wavenumber cutoff
+- `N_reg`: The regularization exponent
+"""
 function InitialVacuumNearAxisEquilibrium(r0_s::Vector{SpectralPowerSeries{T}},
                Nρ::Integer, Mc::Integer, B0_s::SpectralPowerSeries{T}, 
                K_reg::Integer, N_reg::Integer) where {T}
@@ -215,44 +232,44 @@ function InitialVacuumNearAxisEquilibrium(r0_s::Vector{SpectralPowerSeries{T}},
     r0_s = to_arclength(r0_s, Mc); # Set 
 
     Ms = get_M(r0_s[1]);
-    r0_c, ℓp_s, ℓp_c, ℓp_ave, κ_s, κ_c, τ_s, τ_c, Q_s, Q_c = get_κτ(r0_s, Mc)
-    # display(ℓp_s)
+    r0_c, ellp_s, ellp_c, ellp_ave, kappa_s, kappa_c, tau_s, tau_c, Q_s, Q_c = get_kappatau(r0_s, Mc)
+    # display(ellp_s)
     # [display(r0_ci.a) for r0_ci in r0_c]
     g_s, g_c, ginv_s, ginv_c, rootg_s, rootg_c, rootginv_s, rootginv_c = (
-       get_FS_metric(Nρ,ℓp_c,κ_c,τ_c,Ms))
+       get_FS_metric(Nρ,ellp_c,kappa_c,tau_c,Ms))
 
 
     B_s = [zero_SpectralPowerSeries(T, Ms, Nρ) for ii = 1:3]
     B_s[3][1] = B0_s[1];
     B_c = [SpatialPowerSeries(B_si; M = Mc) for B_si in B_s]
 
-    ϕ_s = zero_SpectralPowerSeries(T, Ms, Nρ)
-    ϕ_c = zero_SpatialPowerSeries(T, Mc, Nρ)
+    phi_s = zero_SpectralPowerSeries(T, Ms, Nρ)
+    phi_c = zero_SpatialPowerSeries(T, Mc, Nρ)
 
-    dϕ_s = [zero_SpectralPowerSeries(T, Ms, Nρ) for ii = 1:3]
+    dphi_s = [zero_SpectralPowerSeries(T, Ms, Nρ) for ii = 1:3]
     BK_s = [zero_SpectralPowerSeries(T, Ms, Nρ) for ii = 1:3]
     B_s[3][1] = B0_s[1];
     BK_c = [SpatialPowerSeries(B_si; M = Mc) for B_si in B_s]
 
-    ψ_s = zero_SpectralPowerSeries(T, Ms, Nρ)
-    ψ_c = zero_SpatialPowerSeries(T, Mc, Nρ)
+    psi_s = zero_SpectralPowerSeries(T, Ms, Nρ)
+    psi_c = zero_SpatialPowerSeries(T, Mc, Nρ)
 
-    ξ_s = [zero_SpectralPowerSeries(T, Ms, Nρ) for ii = 1:2]
-    ξ_c = [zero_SpatialPowerSeries(T, Ms, Nρ)  for ii = 1:2]
+    xi_s = [zero_SpectralPowerSeries(T, Ms, Nρ) for ii = 1:2]
+    xi_c = [zero_SpatialPowerSeries(T, Ms, Nρ)  for ii = 1:2]
 
-    ι = zero_FluxPowerSeries(T, Nρ)
+    iota = zero_FluxPowerSeries(T, Nρ)
 
     # display(typeof.([]))
-    DirectNearAxisEquilibrium(Ms, Mc, Nρ, r0_s, r0_c, ℓp_s, ℓp_c, ℓp_ave, κ_s, κ_c, τ_s,
-             τ_c, Q_s, Q_c,
+    DirectNearAxisEquilibrium(Ms, Mc, Nρ, r0_s, r0_c, ellp_s, ellp_c, ellp_ave, kappa_s, kappa_c, tau_s,
+             tau_c, Q_s, Q_c,
              g_s, g_c, ginv_s, ginv_c, rootg_s, rootg_c, rootginv_s, rootginv_c,
-             B0_s, B_s, B_c, ϕ_s, ϕ_c, dϕ_s, BK_s, BK_c, ψ_s, ψ_c, ξ_s, ξ_c, ι,
+             B0_s, B_s, B_c, phi_s, phi_c, dphi_s, BK_s, BK_c, psi_s, psi_c, xi_s, xi_c, iota,
              K_reg, N_reg)
 end
 
 function vacuum_update_B!(nae::DirectNearAxisEquilibrium)
     # Update B0
-    nae.B_s[:] = grad(nae.ϕ_s);
+    nae.B_s[:] = grad(nae.phi_s);
     nae.B_s[3][1] = nae.B_s[3][1] + nae.B0_s[1];
     nae.B_c[:] = [SpatialPowerSeries(Bi, M=nae.Mc) for Bi in nae.B_s];
 end
@@ -264,7 +281,7 @@ function vacuum_residual(nae::DirectNearAxisEquilibrium)
 
     B_contra_s = to_Spectral.(nae.rootg_c * (nae.ginv_c*nae.B_c));
     divB_c = to_Spatial(div(B_contra_s))
-    res = PowerSeriesRho()^(-1) * to_Spectral(*(divB_c, inv(nae.ℓp_c); N=nae.Nρ+1))
+    res = PowerSeriesRho()^(-1) * to_Spectral(*(divB_c, inv(nae.ellp_c); N=nae.Nρ+1))
     # display(res[1].a)
     # display(res[2].a)
     # display(res[3].a)
@@ -278,7 +295,7 @@ function regularized_residual(nae::DirectNearAxisEquilibrium)
 
     Brootg_s = to_Spectral.(nae.rootg_c * nae.BK_c);
     divB_c = to_Spatial(div(Brootg_s))
-    res = PowerSeriesRho()^(-1) * to_Spectral(*(divB_c, inv(nae.ℓp_c); N=nae.Nρ+1))
+    res = PowerSeriesRho()^(-1) * to_Spectral(*(divB_c, inv(nae.ellp_c); N=nae.Nρ+1))
 
     for ii = 1:3
         println("ii=$ii")
@@ -336,30 +353,30 @@ function update_BK!(nae)
     to_Spatial = (x) -> SpatialPowerSeries(x, M=nae.Mc);
     ρ = PowerSeriesRho()
 
-    dϕds_s = deepcopy(nae.ϕ_s)
+    dphids_s = deepcopy(nae.phi_s)
     for ii = 1:nae.N_reg
-        dϕds_s = -(nae.K_reg*nae.ℓp_s[1].a[1])^(-2) * s_deriv(s_deriv(dϕds_s))
+        dphids_s = -(nae.K_reg*nae.ellp_s[1].a[1])^(-2) * s_deriv(s_deriv(dphids_s))
     end
 
     
     ## Potential alternate method for taking the derivative
-    # dϕds_s2= deepcopy(nae.ϕ_s)
+    # dphids_s2= deepcopy(nae.phi_s)
     # for ii = 1:nae.Nρ
-    #     dϕds_s[ii].a[1,:] .= 0.
+    #     dphids_s[ii].a[1,:] .= 0.
     #     for jj = 2:2:nae.Ms
-    #         dϕds_s[ii].a[jj:jj+1,:] = dϕds_s[ii].a[jj:jj+1,:] .* ((jj÷2)/nae.K_reg)^(2. * nae.N_reg)
+    #         dphids_s[ii].a[jj:jj+1,:] = dphids_s[ii].a[jj:jj+1,:] .* ((jj÷2)/nae.K_reg)^(2. * nae.N_reg)
     #     end
     # end
 
-    # display(Fnorm(dϕds_s - dϕds_s2))
+    # display(Fnorm(dphids_s - dphids_s2))
 
-    dϕ_s = Diagonal([ρ, inv(ρ), ZeroPowerSeries()]) * grad(dϕds_s)
+    dphi_s = Diagonal([ρ, inv(ρ), ZeroPowerSeries()]) * grad(dphids_s)
 
-    nae.dϕ_s[1:2] = grad(dϕds_s)[1:2]
-    dϕ_c = [to_Spatial(dϕ_s[1]), to_Spatial(dϕ_s[2]), ZeroPowerSeries()]
+    nae.dphi_s[1:2] = grad(dphids_s)[1:2]
+    dphi_c = [to_Spatial(dphi_s[1]), to_Spatial(dphi_s[2]), ZeroPowerSeries()]
 
-    # nae.BK_c[:] = dϕ_c + nae.ginv_c*nae.B_c
-    nae.BK_c[:] = *(nae.ℓp_c, nae.rootginv_c, N=nae.Nρ) * dϕ_c + nae.ginv_c*nae.B_c
+    # nae.BK_c[:] = dphi_c + nae.ginv_c*nae.B_c
+    nae.BK_c[:] = *(nae.ellp_c, nae.rootginv_c, N=nae.Nρ) * dphi_c + nae.ginv_c*nae.B_c
 
 
     # nae.BK_c[:] = nae.ginv_c*nae.B_c
@@ -370,37 +387,39 @@ function get_IC_from_eq(nae::DirectNearAxisEquilibrium)
     Nρ = nae.Nρ
     Ms = nae.Ms
 
-    ϕ_IC = zeros(Ms, 2Nρ-1)
-    ϕ_s = nae.ϕ_s
+    phi_IC = zeros(Ms, 2Nρ-1)
+    phi_s = nae.phi_s
 
-    ϕ_IC[:, 1]   = ϕ_s[1].a[:];
-    ϕ_IC[:, 2:3] = ϕ_s[2].a[:];
+    phi_IC[:, 1]   = phi_s[1].a[:];
+    phi_IC[:, 2:3] = phi_s[2].a[:];
     
     for ii = 3:Nρ
         if mod(ii,2) == 1
-            ϕ_IC[:, 2ii-2:2ii-1] = ϕ_s[ii].a[:, ii:-1:ii-1];
+            phi_IC[:, 2ii-2:2ii-1] = phi_s[ii].a[:, ii:-1:ii-1];
         else
-            ϕ_IC[:, 2ii-2:2ii-1] = ϕ_s[ii].a[:, ii-1:ii];
+            phi_IC[:, 2ii-2:2ii-1] = phi_s[ii].a[:, ii-1:ii];
         end
     end
 
-    ϕ_IC
+    phi_IC
 end
 
 """
-    vacuum_solve(nae::DirectNearAxisEquilibrium, ϕ_IC::AbstractArray)
+    vacuum_solve(nae::DirectNearAxisEquilibrium, phi_IC::AbstractArray)
 
-Solve for a vacuum field. The boundary conditions at each order are given boundary 
- - `ϕ_IC = [ϕ_0c0, ϕ_1c1, ϕ_1s1, ϕ_2c2, ϕ_2s2, ..., ϕ_NcN, ϕ_NsN]`
+Solve for a vacuum field. If `Ms` is the number of Fourier modes, and `Nρ` is the order of the 
+series the boundary conditions at each order are given by the `Ms × 2Nρ-1` matrix
+ - `phi_IC = [phi_0c0, phi_1c1, phi_1s1, phi_2c2, phi_2s2, ..., phi_NcN, phi_NsN]`
+ Note that the magnetic axis to truely be a magnetic axis, the first three columns are zero.
 """
-function vacuum_solve(nae::DirectNearAxisEquilibrium, ϕ_IC::AbstractArray)
+function vacuum_solve(nae::DirectNearAxisEquilibrium, phi_IC::AbstractArray)
     # Ms = nae.Ms;
     # Mc = nae.Mc;
     # Nρ = nae.Nρ;
 
     for ii = 1:nae.Nρ
-        nae.ϕ_s[ii].a[:] .= 0.;
-        nae.ϕ_c[ii].a[:] .= 0.;
+        nae.phi_s[ii].a[:] .= 0.;
+        nae.phi_c[ii].a[:] .= 0.;
         for jj = 1:3
             nae.B_s[jj][ii].a[:] .= 0.;
             nae.B_c[jj][ii].a[:] .= 0.
@@ -408,15 +427,15 @@ function vacuum_solve(nae::DirectNearAxisEquilibrium, ϕ_IC::AbstractArray)
     end
 
 
-    nae.ϕ_s[1].a[:] = ϕ_IC[:, 1];
-    nae.ϕ_s[2].a[:] = ϕ_IC[:, 2:3];
+    nae.phi_s[1].a[:] = phi_IC[:, 1];
+    nae.phi_s[2].a[:] = phi_IC[:, 2:3];
     
     # Update B0
     vacuum_update_B!(nae)
     # update_BK!(nae)
 
     for ii = 3:nae.Nρ
-        # Set ϕ_s to zero for the residual
+        # Set phi_s to zero for the residual
 
         # Get residual
         res = vacuum_residual(nae)[ii-2];
@@ -424,12 +443,12 @@ function vacuum_solve(nae::DirectNearAxisEquilibrium, ϕ_IC::AbstractArray)
         # Solve diagonal part of system
         D = vacuum_diagonal_operator(ii-1)
         D_reg = regularization_diagonal_operator(nae.Ms, ii-1, nae.K_reg, nae.N_reg)
-        (nae.ϕ_s[ii]).a[:,1:ii-2] = -(res.a * inv(D)) ./ D_reg;
+        (nae.phi_s[ii]).a[:,1:ii-2] = -(res.a * inv(D)) ./ D_reg;
 
         if mod(ii,2) == 1
-            nae.ϕ_s[ii].a[:, ii:-1:ii-1] = ϕ_IC[:, 2ii-2:2ii-1];
+            nae.phi_s[ii].a[:, ii:-1:ii-1] = phi_IC[:, 2ii-2:2ii-1];
         else
-            nae.ϕ_s[ii].a[:, ii-1:ii]    = ϕ_IC[:, 2ii-2:2ii-1];
+            nae.phi_s[ii].a[:, ii-1:ii]    = phi_IC[:, 2ii-2:2ii-1];
         end
 
         # Update B0
@@ -442,24 +461,24 @@ end
 
 
 
-function ψ_residual(nae::DirectNearAxisEquilibrium)
+function psi_residual(nae::DirectNearAxisEquilibrium)
     to_Spectral = (x) -> SpectralPowerSeries(x, M=nae.Ms);
     to_Spatial = (x) -> SpatialPowerSeries(x, M=nae.Mc);
 
-    dψ_s = nabla(nae.ψ_s)
-    dψ_c = to_Spatial(dψ_s)
-    res_c = dot(nae.B_c, dψ_c)
+    dpsi_s = nabla(nae.psi_s)
+    dpsi_c = to_Spatial(dpsi_s)
+    res_c = dot(nae.B_c, dpsi_c)
 
     return [to_Spectral(res_ci) for res_ci in res_c]
 end
 
-function ψ_matrices(nae::DirectNearAxisEquilibrium)
+function psi_matrices(nae::DirectNearAxisEquilibrium)
 
     Ms = nae.Ms;
     Mc = nae.Mc;
     x = (0:Ms-1).*(2π/Mc);
     F = full_fourier_matrix(x, Ms)
-    # ϕ20, ϕ21, ϕ22 and derivative
+    # phi20, phi21, phi22 and derivative
 end
 
 
@@ -569,23 +588,23 @@ function evolve_BK_map(nae::DirectNearAxisEquilibrium, s0::Number, sf::Number; t
 end
 
 
-function α_map_residual(G::AbstractVector, ι::FluxPowerSeries, ψ::SpatialPowerSeries, Ftree::AbstractVector)
+function α_map_residual(G::AbstractVector, iota::FluxPowerSeries, psi::SpatialPowerSeries, Ftree::AbstractVector)
     res = [SpatialPowerSeries(section_compose(Gi, Ftree)) for Gi in G];
-    N = get_N(ψ);
+    N = get_N(psi);
     ρ = PowerSeriesRho();
     
-    ιψ = zero_SpectralPowerSeries(1,N+1)
-    ιψ[1] = [2π*ι[1]]
-    ιψ = SpatialPowerSeries(ιψ)
+    iotapsi = zero_SpectralPowerSeries(1,N+1)
+    iotapsi[1] = [2π*iota[1]]
+    iotapsi = SpatialPowerSeries(iotapsi)
 
     G_c = SpatialPowerSeries.(G; N)
 
-    ψn = ψ
+    psin = psi
     for n = 3:2:N-2
-        ιψ = ιψ + 2π*ι[n] * ψn
-        ψn = ψn*ψ
+        iotapsi = iotapsi + 2π*iota[n] * psin
+        psin = psin*psi
     end
-    s, c = sincos(ιψ);
+    s, c = sincos(iotapsi);
 
     RG = [c*G_c[1] - s*G_c[2], s*G_c[1] + c*G_c[2]]
     # println("res = $(hcat([resi[4].a for resi in res]...))")
@@ -598,33 +617,33 @@ function α_map_residual(G::AbstractVector, ι::FluxPowerSeries, ψ::SpatialPowe
     SpectralPowerSeries.(res)
 end
 
-"""
-    find_α_map(F::AbstractVector)
+# """
+#     find_α_map(F::AbstractVector)
 
-Find a map to coordinates where `F` is conjugate to a rotation.
-"""
+# Find a map to coordinates where `F` is conjugate to a rotation.
+# """
 function find_α_map(F::AbstractVector)
     N = get_N(F[1]);
     Ftree = section_composition_basis(F)
     G = [zero_SpectralPowerSeries(1,N) for ii = 1:2]
-    ι = zero_FluxPowerSeries(N-1)
-    ψ = zero_SpatialPowerSeries(1,N+1);
+    iota = zero_FluxPowerSeries(N-1)
+    psi = zero_SpatialPowerSeries(1,N+1);
     
     F0p = zeros(2,2);
     F0p[1,:] = Ftree[2][1][2].a;
     F0p[2,:] = Ftree[2][2][2].a;
 
     λ, P = eigen(F0p);
-    ι0 = -angle(λ[1])/(2π)
-    ι[1] = ι0
+    iota0 = -angle(λ[1])/(2π)
+    iota[1] = iota0
     
     QU = [1 -im
           1  im] ./sqrt(2)
     U = real.(P*QU);
-    R = [cos(2π*ι0) -sin(2π*ι0)
-         sin(2π*ι0)  cos(2π*ι0)];
-    Rp = [-sin(2π*ι0) -cos(2π*ι0)
-           cos(2π*ι0) -sin(2π*ι0)];
+    R = [cos(2π*iota0) -sin(2π*iota0)
+         sin(2π*iota0)  cos(2π*iota0)];
+    Rp = [-sin(2π*iota0) -cos(2π*iota0)
+           cos(2π*iota0) -sin(2π*iota0)];
     Uinv = inv(U);
     # println("U*R*Uinv - F0p = $(U*R*Uinv-F0p)")
     # println("R*Uinv = $(R*Uinv)")
@@ -632,7 +651,7 @@ function find_α_map(F::AbstractVector)
     G[2][2] = Uinv[2,:];
     
     G_c = SpatialPowerSeries.(G);
-    ψ = *(G_c[1],G_c[1];N=N+1) + *(G_c[2],G_c[2];N=N+1)
+    psi = *(G_c[1],G_c[1];N=N+1) + *(G_c[2],G_c[2];N=N+1)
     
     RpG0 = SpatialPowerSeries.([Rp[1,1]*G[1]+Rp[1,2]*G[2], Rp[2,1]*G[1] + Rp[2,2]*G[2]])
     # println("Rp  - $(Rp)")
@@ -651,7 +670,7 @@ function find_α_map(F::AbstractVector)
         A[1:n, n+1:2n] = -R[1,2]*Matrix(1.0*I, n, n)
         A[n+1:2n, 1:n] = -R[2,1]*Matrix(1.0*I, n, n)
 
-        res = α_map_residual(G, ι, ψ, Ftree)
+        res = α_map_residual(G, iota, psi, Ftree)
         b[1:n] = -res[1][n].a;
         b[n+1:2n] = -res[2][n].a;
         
@@ -660,19 +679,19 @@ function find_α_map(F::AbstractVector)
             G[1][n] = coef[1:n];
             G[2][n] = coef[n+1:2n];
         else
-            ψn = ψ
+            psin = psi
             for jj = 6:2:n
                 # println("jj=$jj")
-                ψn = ψn*ψ
+                psin = psin*psi
             end
-            RpG0ψn = [SpectralPowerSeries(Ai*ψn) for Ai in RpG0];
-            AK[1:n,2n+1]    = - 2π*RpG0ψn[1][n].a
-            A[n+1:2n,2n+1] = - 2π*RpG0ψn[2][n].a
+            RpG0psin = [SpectralPowerSeries(Ai*psin) for Ai in RpG0];
+            AK[1:n,2n+1]    = - 2π*RpG0psin[1][n].a
+            A[n+1:2n,2n+1] = - 2π*RpG0psin[2][n].a
 
             coef = A\b
             G[1][n] = coef[1:n];
             G[2][n] = coef[n+1:2n];
-            ι[n-1]  = coef[2n+1];
+            iota[n-1]  = coef[2n+1];
             # display(coef)
             λ,P = eigen(A[1:2n,1:2n]);
             # display(eigen(A[1:2n,1:2n]))
@@ -682,10 +701,10 @@ function find_α_map(F::AbstractVector)
         end
 
         G_c = SpatialPowerSeries.(G);
-        ψ = *(G_c[1],G_c[1];N=N+1) + *(G_c[2],G_c[2];N=N+1)
+        psi = *(G_c[1],G_c[1];N=N+1) + *(G_c[2],G_c[2];N=N+1)
     end
 
-    G, ι, SpectralPowerSeries(ψ)
+    G, iota, SpectralPowerSeries(psi)
 end
 
 function flux_leading_order(hx_c, hy_c, nae)
@@ -768,16 +787,16 @@ function flux_leading_order(hx_c, hy_c, nae)
 
     # TODO: what if it's not elliptic?
 
-    nae.ξ_s[1][2] = v[:,1,:];
-    nae.ξ_s[2][2] = v[:,2,:];
-    nae.ξ_c[:] .= to_Spatial.(nae.ξ_s)
-    ψ_c= dot(nae.ξ_c,nae.ξ_c);
-    ψ_s = to_Spectral(ψ_c)
-    for ii = 1:get_N(ψ_c)
-        nae.ψ_c[ii] = ψ_c[ii]
-        nae.ψ_s[ii] = ψ_s[ii]
+    nae.xi_s[1][2] = v[:,1,:];
+    nae.xi_s[2][2] = v[:,2,:];
+    nae.xi_c[:] .= to_Spatial.(nae.xi_s)
+    psi_c= dot(nae.xi_c,nae.xi_c);
+    psi_s = to_Spectral(psi_c)
+    for ii = 1:get_N(psi_c)
+        nae.psi_c[ii] = psi_c[ii]
+        nae.psi_s[ii] = psi_s[ii]
     end
-    nae.ι[1] = real(λ)
+    nae.iota[1] = real(λ)
 end
 
 function flux_resid(hx_c, hy_c, nae)
@@ -787,13 +806,13 @@ function flux_resid(hx_c, hy_c, nae)
     to_Spatial = (x) -> SpatialPowerSeries(x, M=Mc);
     Nρ = nae.Nρ
     
-    ξ_s = nae.ξ_s
-    ξ_c = nae.ξ_c
-    ψ_c = nae.ψ_c
-    ι = nae.ι
+    xi_s = nae.xi_s
+    xi_c = nae.xi_c
+    psi_c = nae.psi_c
+    iota = nae.iota
 
-    Gpolar = to_Spatial.([rho_deriv(ξ_s[1]) theta_deriv(ξ_s[1]); 
-                          rho_deriv(ξ_s[2]) theta_deriv(ξ_s[2])])
+    Gpolar = to_Spatial.([rho_deriv(xi_s[1]) theta_deriv(xi_s[1]); 
+                          rho_deriv(xi_s[2]) theta_deriv(xi_s[2])])
 
 
     x_s = zero_SpectralPowerSeries(Ms, 2);
@@ -815,20 +834,26 @@ function flux_resid(hx_c, hy_c, nae)
     Gh = [*(G[ii,1],hx_c,N=Nρ) + 
           *(G[ii,2],hy_c,N=Nρ) for ii = 1:2]
 
-    Jξ = [-ξ_c[2], ξ_c[1]]
-    ιJξ = [to_Spectral(flux_compose(ι, ψ_c) * Jξi) for Jξi in Jξ]
+    Jxi = [-xi_c[2], xi_c[1]]
+    iotaJxi = [to_Spectral(flux_compose(iota, psi_c) * Jxii) for Jxii in Jxi]
 
-    res = s_deriv.(ξ_s) + to_Spectral.(Gh) - ιJξ
+    res = s_deriv.(xi_s) + to_Spectral.(Gh) - iotaJxi
 
-    ξinv_s = invert_coordinates(nae.ξ_s; M=Mc)
-    ξinvtree = composition_basis(ξinv_s; M=Mc)
+    xiinv_s = invert_coordinates(nae.xi_s; M=Mc)
+    xiinvtree = composition_basis(xiinv_s; M=Mc)
     
-    # hξ = s_deriv.(ξ_s) + to_Spectral.(Gh);
-    # [compose(hξi, ξinvtree) for hξi in hξ]
+    # hxi = s_deriv.(xi_s) + to_Spectral.(Gh);
+    # [compose(hxii, xiinvtree) for hxii in hxi]
     
-    [compose(resi, ξinvtree) for resi in res]
+    [compose(resi, xiinvtree) for resi in res]
 end
 
+"""
+    get_flux_coordinates(nae::DirectNearAxisEquilibrium) 
+
+Given a solved DirectNearAxisEquilibrium, find flux coordinates. They can be accessed via
+`nae.ξ_s`, and the flux/rotational transform can be found via `nae.psi_s`/`nae.iota`.
+"""
 function get_flux_coordinates(nae::DirectNearAxisEquilibrium) 
     ## Setup   
     Ms = nae.Ms;
@@ -863,9 +888,9 @@ function get_flux_coordinates(nae::DirectNearAxisEquilibrium)
 
     for ii = 1:2
         for jj = 1:Nρ
-            nae.ξ_s[ii][jj].a[:] .= 0.;
-            nae.ξ_c[ii][jj].a[:] .= 0.;
-            nae.ι[jj] = 0.
+            nae.xi_s[ii][jj].a[:] .= 0.;
+            nae.xi_c[ii][jj].a[:] .= 0.;
+            nae.iota[jj] = 0.
         end
     end
 
@@ -882,27 +907,27 @@ function get_flux_coordinates(nae::DirectNearAxisEquilibrium)
     # end
     
     ## Get higher order behavior
-    ι0 = nae.ι[1]
-    Dϕ = s_deriv_operator(Ms)
+    iota0 = nae.iota[1]
+    Dphi = s_deriv_operator(Ms)
     J = [0. -1.; 1. 0.]
-    minus_ι0J = -ι0*J
+    minus_iota0J = -iota0*J
     I2 = [1. 0.; 0. 1.]
     for n = 3:Nρ
         Dθ = theta_deriv_operator(n)
-        minus_resn = zeros(2, Ms, n); # index resn[ξdim, ϕmode, θmode]
+        minus_resn = zeros(2, Ms, n); # index resn[xidim, phimode, θmode]
         minus_resn[1, :, :] = -res[1][n].a
         minus_resn[2, :, :] = -res[2][n].a
-        ξupdate = similar(minus_resn)
+        xiupdate = similar(minus_resn)
         if isodd(n)
             # Do the O(1) stuff
             # jj = 1
-            ξupdate[:,1,1] = minus_ι0J\minus_resn[:,1,1];
+            xiupdate[:,1,1] = minus_iota0J\minus_resn[:,1,1];
 
             for jj = 2:2:Ms
                 ind = jj:jj+1
-                Dϕjj = Dϕ[ind,ind]
-                op = kron(Dϕjj, I2) + kron(I2, minus_ι0J)
-                ξupdate[:,ind,1] = reshape(op\vec(minus_resn[:,ind,1]),2,2)
+                Dphijj = Dphi[ind,ind]
+                op = kron(Dphijj, I2) + kron(I2, minus_iota0J)
+                xiupdate[:,ind,1] = reshape(op\vec(minus_resn[:,ind,1]),2,2)
             end
         end
 
@@ -911,48 +936,48 @@ function get_flux_coordinates(nae::DirectNearAxisEquilibrium)
         for ii = 1:n÷2
             m = (1 + odd + 2*(ii-1))
             indi = m:m+1
-            Dθkk = ι0 .* Dθ[indi, indi]
+            Dθkk = iota0 .* Dθ[indi, indi]
             
-            # Constant in ϕ contribution
+            # Constant in phi contribution
             if (ii == 1) && iseven(n)
                 P = [1. 0. 0. 1. ; 0. 1. -1. 0.; 0. 1. 1. 0.; 1. 0. 0. -1.]' ./ sqrt(2)
-                Λ = zeros(4,4); Λ[3:4, 3:4] = 2ι0 .* J;
+                Λ = zeros(4,4); Λ[3:4, 3:4] = 2iota0 .* J;
                 resii = P'*vec(minus_resn[:,1,indi])
-                nae.ι[n-1] = -resii[2]/sqrt(2)
-                ξupdate[:,1,indi] = reshape(P[:,3:4]*((2ι0 .* J)\resii[3:4]),2,2)
+                nae.iota[n-1] = -resii[2]/sqrt(2)
+                xiupdate[:,1,indi] = reshape(P[:,3:4]*((2iota0 .* J)\resii[3:4]),2,2)
                 
-                # println("$(n-1), ι[$(n-1)] = $(nae.ι[n-1])")
+                # println("$(n-1), iota[$(n-1)] = $(nae.iota[n-1])")
                 # println("minus_resn[:,1,indi] = $(norm(minus_resn[:,1,indi]))")
                 # println("resii = $(norm(resii))")
-                # op = kron(Dθkk, I2) + kron(I2, minus_ι0J)
+                # op = kron(Dθkk, I2) + kron(I2, minus_iota0J)
                 # op = P*Λ*P'
-                # println("After Residual = $(norm(op*vec(ξupdate[:,1,indi]) - vec(minus_resn[:,1,indi])-nae.ι[n-1]*vec(J) ))")
+                # println("After Residual = $(norm(op*vec(xiupdate[:,1,indi]) - vec(minus_resn[:,1,indi])-nae.iota[n-1]*vec(J) ))")
             else
-                op = kron(Dθkk, I2) + kron(I2, minus_ι0J)
-                ξupdate[:,1,indi] = reshape(op\vec(minus_resn[:,1,indi]),2,2)
+                op = kron(Dθkk, I2) + kron(I2, minus_iota0J)
+                xiupdate[:,1,indi] = reshape(op\vec(minus_resn[:,1,indi]),2,2)
             end
             
             for jj = 2:2:Ms
                 indj = jj:jj+1
-                Dϕjj = Dϕ[indj, indj]
-                op = kron(Dθkk, I2, I2) + kron(I2, Dϕjj, I2) + kron(I2, I2, minus_ι0J)
-                ξupdate[:,indj,indi] = reshape(op\vec(minus_resn[:,indj,indi]),2,2,2)
+                Dphijj = Dphi[indj, indj]
+                op = kron(Dθkk, I2, I2) + kron(I2, Dphijj, I2) + kron(I2, I2, minus_iota0J)
+                xiupdate[:,indj,indi] = reshape(op\vec(minus_resn[:,indj,indi]),2,2,2)
             end
         end
         
-        ξmap_n = deepcopy(identity_s)
-        ξmap_n[1][n] = ξupdate[1,:,:]
-        ξmap_n[2][n] = ξupdate[2,:,:]
-        # println("typeof(ξmap_n[1]) = $(typeof(ξmap_n[1]))")
+        ximap_n = deepcopy(identity_s)
+        ximap_n[1][n] = xiupdate[1,:,:]
+        ximap_n[2][n] = xiupdate[2,:,:]
+        # println("typeof(ximap_n[1]) = $(typeof(ximap_n[1]))")
         
-        ξ_tree = composition_basis(nae.ξ_s)
-        nae.ξ_s[:] = [compose(ξmap_ni, ξ_tree) for ξmap_ni in ξmap_n]
-        nae.ξ_c[:] = to_Spatial.(nae.ξ_s)
-        ψ_c= dot(nae.ξ_c,nae.ξ_c);
-        ψ_s = to_Spectral(ψ_c)
-        for ii = 1:get_N(ψ_c)
-            nae.ψ_c[ii] = ψ_c[ii]
-            nae.ψ_s[ii] = ψ_s[ii]
+        xi_tree = composition_basis(nae.xi_s)
+        nae.xi_s[:] = [compose(ximap_ni, xi_tree) for ximap_ni in ximap_n]
+        nae.xi_c[:] = to_Spatial.(nae.xi_s)
+        psi_c= dot(nae.xi_c,nae.xi_c);
+        psi_s = to_Spectral(psi_c)
+        for ii = 1:get_N(psi_c)
+            nae.psi_c[ii] = psi_c[ii]
+            nae.psi_s[ii] = psi_s[ii]
         end
 
         res = flux_resid(hx_c, hy_c, nae)

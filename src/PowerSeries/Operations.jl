@@ -516,11 +516,11 @@ function LinearAlgebra.dot(a::Vector{<:AbstractPowerSeries}, b::Vector{<:Abstrac
     C 
 end
 
-"""
-    adjoint(A::AbstractPowerSeries{T}) where {T<:Complex}
+# """
+#     adjoint(A::AbstractPowerSeries{T}) where {T<:Complex}
 
-Finds the adjoint of a complex power series.
-"""
+# Finds the adjoint of a complex power series.
+# """
 function adjoint(A::AbstractPowerSeries{T}) where {T<:Complex}
     B = similar(A);
     for ii = 1:get_N(A)
@@ -541,17 +541,17 @@ end
 
 
 """
-    norm(A::Vector{S}) where {S <: AbstractPowerSeries}
+    LinearAlgebra.norm(A::AbstractVector{<:AbstractPowerSeries})
 
 Returns the norm of a power series `A`, i.e. `(A'*A)^0.5`.
 For a norm of the elements of `A`, see [`Fnorm`](@ref).
 """
-function LinearAlgebra.norm(A::Vector{S}) where {S <: AbstractPowerSeries}
+function LinearAlgebra.norm(A::AbstractVector{<:AbstractPowerSeries})
     (dot(A,A))^0.5
 end
 
 # """
-#     *(a::S, b::Vector) where {S <: AbstractPowerSeries}
+#     *(a::S, b::AbstractVector) where {S <: AbstractPowerSeries}
 
 # Multiplies each entry of a vector by a power series.
 # """
@@ -560,11 +560,11 @@ function *(a::S, b::AbstractVector) where {S <: AbstractPowerSeries}
 end
 
 """
-    surface_integrate(A::AbstractPowerSeries; N::Integer=-1)
+    surface_integrate(A::AbstractPowerSeries)
 
 Performs the surface integral ∫A dθ dϕ.
 """
-function surface_integrate(A::AbstractPowerSeries{T}; N::Integer=-1) where {T}
+function surface_integrate(A::AbstractPowerSeries{T}) where {T}
     N = get_N(A);
 
     p0 = get_p0(A);
@@ -618,13 +618,13 @@ function rho_integrate_j!(intA::AbstractPowerSeries{T}, A::AbstractPowerSeries{T
 end
 
 """
-    rho_integrate(A::AbstractPowerSeries{T}) where {T}
+    rho_integrate(A::AbstractPowerSeries)
 
 Perform the integral
     `B(r) = ∫₀ʳ A(ρ) ρ dρ`
-See [`ρ_antideriv`](@ref) for the integral without the integrating factor.
+See [`rho_antideriv`](@ref) for the integral without the integrating factor.
 """
-function rho_integrate(A::AbstractPowerSeries{T}) where {T}
+function rho_integrate(A::AbstractPowerSeries)
     # println("Untested!!!")
     p0 = get_p0(A)+2;
     intA = similar(A; p0)
@@ -636,19 +636,18 @@ function rho_integrate(A::AbstractPowerSeries{T}) where {T}
 end
 
 """
-    ρ_antideriv(A::AbstractPowerSeries{T}) where {T}
+    rho_antideriv(A::AbstractPowerSeries)
 
 Perform the integral
     `B(r) = ∫₀ʳ A(ρ) dρ`
-(note: unlike [`rho_integrate`](@ref), which includes an integrating factor
-for analytic integrals)
+(note: unlike [`rho_integrate`](@ref), which includes an integrating factor for analytic integrals)
 """
-function ρ_antideriv(A::AbstractPowerSeries{T}) where {T}
-    println("ρ_antideriv still untested! Use at your own risk")
+function rho_antideriv(A::AbstractPowerSeries)
+    # println("rho_antideriv still untested! Use at your own risk")
     p0 = get_p0(A)+1;
     intA = similar(A; p0)
     for jj = 1:get_N(A)
-        ρ_antideriv_j!(intA, A, jj)
+        rho_antideriv_j!(intA, A, jj)
     end
 
     intA
@@ -658,7 +657,7 @@ end
 """
     volume_integate(A::AbstractPowerSeries{T}; N::Integer=-1) where {T}
 
-Integral over a volume. Implemented by composing [`rho_integrate`](@ref) with
+Integral over a volume. Implemented by composing [`rho_integrate`](@ref) with 
 [`surface_integrate`](@ref).
 """
 function volume_integrate(A::AbstractPowerSeries{T}; N::Integer=-1) where {T}
@@ -669,8 +668,8 @@ end
 """
     Fnorm(A::AbstractPowerSeries{T}) where {T}
 
-Frobenius norm of the elements of `A`. 
-Useful for determining approximate equality of AbstractPowerSeries.
+Frobenius norm of the elements of `A`. Useful for determining approximate equality of 
+AbstractPowerSeries.
 """
 function Fnorm(A::AbstractPowerSeries{T}) where {T}
     my_norm = zero(T);
@@ -681,7 +680,14 @@ function Fnorm(A::AbstractPowerSeries{T}) where {T}
     sqrt(my_norm);
 end
 
-# Changing the value of p0
+"""
+    distribute_p0(A::AbstractPowerSeries, p0::Integer)
+
+If `A` has an order `q0 ≥ p0`, creates a new AbstractPowerSeries of the same type with order offset
+`p0`` with equal coefficients. For analyticity to be preserved, we additionally require that `q0` 
+and `p0` are even offsets of each other (`p0-q0 = 0 mod 2`). If `p0` is not specified, the default
+value is `p0=0`.
+"""
 function distribute_p0(A::AbstractPowerSeries, p0::Integer)
     p0A = get_p0(A);
     @assert p0 <= p0A;
@@ -700,6 +706,17 @@ end
 
 function distribute_p0(A::AbstractPowerSeries); distribute_p0(A, 0); end
 
+
+"""
+    unsafe_distribute_p0(A::AbstractPowerSeries[, p0::Integer])
+
+Creates a new PowerSeries with order offset p0 with equal coefficients to `A`. For analyticity to be 
+preserved, we require that `q0` and `p0` are even offsets of each other (`p0-q0 = 0 mod 2`). If `p0` 
+is not specified, the default value is `p0=0`.
+
+If you are unsure about whether p0 can be increased without losing information, 
+[`remove_zeros`](@ref) can automatically check whether the order can be changed.
+"""
 function unsafe_distribute_p0(A::AbstractPowerSeries, p0::Integer)
     p0A = get_p0(A);
     offset = p0A - p0;
@@ -722,10 +739,9 @@ end
 """
     remove_zeros(A::AbstractPowerSeries, tol=1e-10)
 
-If one has access to a power series `A = ρ^2N B`, returns the 
-power series `B`. For example, when the polar Laplacian is 
-applied to a series, the output has zeros in the first two
-orders. This removes those zeros.
+If one has access to a power series `A = ρ^2N B`, returns the power series `B`. For example, when 
+the polar Laplacian is applied to a series, the output has zeros in the first two orders. This 
+removes those zeros.
 """
 function remove_zeros(A::AbstractPowerSeries; tol=1e-10)
     p0 = get_p0(A)

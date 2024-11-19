@@ -1,9 +1,8 @@
 """
     Coil
 
-A coil consists of a filament and a current. It can be constructed by
-`Coil(r0, J)`, where `r0` is a 3-vector of SpectralPowerSeries and 
-`J` is a number expressing the current per unit length.
+A coil consists of a filament and a current. It can be constructed by `Coil(r0, J)`, where `r0` 
+is a 3-vector of SpectralPowerSeries and `J` is a number expressing the current per unit length.
 """
 struct Coil
     r0::Vector # The coil location
@@ -13,9 +12,8 @@ end
 """
     evaluate(x::AbstractArray, c::Coil, M::Number)
 
-Get the magnetic field from the coil `c` at points `x` in a 3×N array.
-Uses Biot-Savart discretized via the trapezoidal rule with `M` quadrature
-points.
+Get the magnetic field from the coil `c` at points `x` in a 3×N array. Uses Biot-Savart discretized 
+via the trapezoidal rule with `M` quadrature points.
 """
 function evaluate(x::AbstractArray{T}, c::Coil, M::Integer) where {T}
     to_Spatial = (f) -> SpatialPowerSeries(f; M=M);
@@ -142,14 +140,14 @@ function magnetic_trajectory(cs::Vector{Coil}, x0::AbstractVector, S::Number, M:
 
     function affect!(int)
         x = int.u
-        ϕ = angle(x[1] + im*x[2])
-        if (ϕ-int.p[2])^2 < 0.01
+        phi = angle(x[1] + im*x[2])
+        if (phi-int.p[2])^2 < 0.01
             push!(int.p[3], [sqrt(x[1]^2 + x[2]^2), x[3], angle(x[1] + im*x[2])])
         end
     end
 
-    ϕ0 = angle(x0[1] + im * x0[2])
-    params = [M, ϕ0, [[sqrt(x0[1]^2 + x0[2]^2), x0[3], ϕ0]]]
+    phi0 = angle(x0[1] + im * x0[2])
+    params = [M, phi0, [[sqrt(x0[1]^2 + x0[2]^2), x0[3], phi0]]]
     sspan = (0, S);
 
     cb = ContinuousCallback(condition, affect!)
@@ -174,15 +172,15 @@ function magnetic_map_trajectory(cs::Vector{Coil}, x0::AbstractVector, M::Number
 
     function affect!(int)
         x = int.u
-        ϕ = angle(x[1] + im*x[2])
-        if (ϕ-int.p[2])^2 < 0.01
+        phi = angle(x[1] + im*x[2])
+        if (phi-int.p[2])^2 < 0.01
             push!(int.p[3], [sqrt(x[1]^2 + x[2]^2), x[3]])
             terminate!(int)
         end
     end
 
-    ϕ0 = angle(x0[1] + im * x0[2])
-    params = [M, ϕ0, [[sqrt(x0[1]^2 + x0[2]^2), x0[3]]]]
+    phi0 = angle(x0[1] + im * x0[2])
+    params = [M, phi0, [[sqrt(x0[1]^2 + x0[2]^2), x0[3]]]]
     sspan = (0, Smax);
 
     cb = ContinuousCallback(condition, affect!)
@@ -200,14 +198,14 @@ end
 """
     find_magnetic_axis(x0::AbstractVector, cs::Vector{Coil}, Mcoil::Integer)
 
-Find a point on the magnetic axis of a coil set `cs` with `Mcoil` quadrature points. 
-Requires an initial guess of a point on the axis `x0`. Note: This is 
+Find a point on the magnetic axis of a coil set `cs` with `Mcoil` quadrature points. Requires an 
+initial guess of a point on the axis `x0`. 
 """
 function find_magnetic_axis(x0::AbstractVector, cs::Vector{Coil}, Mcoil::Integer; tol::Number=1e-8)
-    ϕ0 = angle( x0[1] + im * x0[2] );
+    phi0 = angle( x0[1] + im * x0[2] );
     x0 = [sqrt(x0[1]^2 + x0[2]^2), x0[3]]
     function f!(F, x)
-        xF =  magnetic_map(cs, [x[1]*cos(ϕ0), x[1]*sin(ϕ0), x[2]], Mcoil; tol)
+        xF =  magnetic_map(cs, [x[1]*cos(phi0), x[1]*sin(phi0), x[2]], Mcoil; tol)
         F[:] = [sqrt(xF[1]^2 + xF[2]^2), xF[3]] - x
     end
     
@@ -234,6 +232,19 @@ function axis_from_point(x0::AbstractVector, cs::Vector{Coil}, Ms::Integer, Mc::
     sol, r0
 end
 
+
+"""
+    get_field_on_axis(r0::AbstractVector, cs::Vector{Coil}, Mc::Number, N::Number, Mcoil::Number)
+
+Expand the magnetic field from the coil set `cs` about the axis `r0` (found, e.g., via 
+[`find_magnetic_axis`](@ref)). The field is computed on `Mc` collocation points and converted to
+a SpectralPowerSeries of order `Ms` dictated by the value of `Ms` used to define `r0`. The field
+is computed to order `N` and with `Mcoil` quadrature points on the coils.
+
+Output:
+- `B`: The magnetic field in Frenet-Serret coordinates
+- `r`: The Frenet-Serret coordinates
+"""
 function get_field_on_axis(r0::AbstractVector, cs::Vector{Coil}, Mc::Number, N::Number, Mcoil::Number)
     # Get the coordinate system
     Ms = get_M(r0[1])
@@ -242,7 +253,7 @@ function get_field_on_axis(r0::AbstractVector, cs::Vector{Coil}, Mc::Number, N::
     to_Spatial = (x) -> SpatialPowerSeries(x, M=Mc);
 
     r0_s = r0;
-    r0_c, ℓp_s, ℓp_c, ℓp_ave, κ_s, κ_c, τ_s, τ_c, Q_s, Q_c = get_κτ(r0_s, Mc)
+    r0_c, ellp_s, ellp_c, ellp_ave, kappa_s, kappa_c, tau_s, tau_c, Q_s, Q_c = get_kappatau(r0_s, Mc)
     
 
     x_s = zero_SpectralPowerSeries(Ms, 2);
@@ -253,16 +264,16 @@ function get_field_on_axis(r0::AbstractVector, cs::Vector{Coil}, Mc::Number, N::
     y_c = to_Spatial(y_s);
     ρ = PowerSeriesRho()
 
-    hinv = inv(*(ℓp_c, 1. - *(κ_c, x_c; N=2); N=N))
+    hinv = inv(*(ellp_c, 1. - *(kappa_c, x_c; N=2); N=N))
     display(hinv)
 
     ρ_tst = 0.1; θ_tst = 0.1; s_tst = 0.1;
     println("hinv = $(evaluate(to_Spectral(hinv), ρ_tst, θ_tst, s_tst)[1])")
-    κ_tst = evaluate(κ_s, ρ_tst, θ_tst, s_tst)[1]
-    ℓp_tst = evaluate(ℓp_s, ρ_tst, θ_tst, s_tst)[1]
+    kappa_tst = evaluate(kappa_s, ρ_tst, θ_tst, s_tst)[1]
+    ellp_tst = evaluate(ellp_s, ρ_tst, θ_tst, s_tst)[1]
     x_tst = evaluate(x_s, ρ_tst, θ_tst, s_tst)[1]
-    println("κ = $κ_tst, ℓp = $ℓp_tst")
-    println("hinv_tst = $(1/(ℓp_tst*(1-x_tst*κ_tst)))")
+    println("kappa = $kappa_tst, ellp = $ellp_tst")
+    println("hinv_tst = $(1/(ellp_tst*(1-x_tst*kappa_tst)))")
 
     r = [+(r0_c[ii], *(Q_c[ii, 1],x_c;N) + *(Q_c[ii,2],y_c;N) ; N) for ii = 1:3]
     
@@ -302,14 +313,14 @@ function get_field_on_axis(r0::AbstractVector, cs::Vector{Coil}, Mc::Number, N::
 
     zps = ZeroPowerSeries() # zero_SpatialPowerSeries(Mc, N)
     Q_polar = [x_c/ρ       y_c/ρ     zps;
-               -y_c/(ρ^2)  x_c/(ρ^2) (*(-ℓp_c*τ_c,hinv;N));
+               -y_c/(ρ^2)  x_c/(ρ^2) (*(-ellp_c*tau_c,hinv;N));
                zps         zps        hinv]
     QB_polar = [zero_SpatialPowerSeries(Mc, N) for ii = 1:3]
 
     # Test stuff
-    Qinv_polar = [x_c/ρ,  (-1. * y_c),  *(ℓp_c * τ_c,-1. *  y_c; N=2),
-                  y_c/ρ,  x_c,          *(ℓp_c*τ_c, x_c; N=2),
-                  zps,    zps,          *(ℓp_c, 1. - *(κ_c, x_c; N=2); N=2)];
+    Qinv_polar = [x_c/ρ,  (-1. * y_c),  *(ellp_c * tau_c,-1. *  y_c; N=2),
+                  y_c/ρ,  x_c,          *(ellp_c*tau_c, x_c; N=2),
+                  zps,    zps,          *(ellp_c, 1. - *(kappa_c, x_c; N=2); N=2)];
     Qinv_polar = reshape(Qinv_polar, 3, 3)'
 
     set_p0!(QB_polar[1], -1)
@@ -324,7 +335,7 @@ function get_field_on_axis(r0::AbstractVector, cs::Vector{Coil}, Mc::Number, N::
         QB_polar[ii] = QB_polar[ii] + *(Q_polar[ii,jj], QB[jj]; N=N)
     end
 
-    to_Spectral.(QB_polar), to_Spectral.(r), to_Spectral.(Q_c), to_Spectral.(Q_polar) , to_Spectral.(Qinv_polar)
+    to_Spectral.(QB_polar), to_Spectral.(r) #, to_Spectral.(Q_c), to_Spectral.(Q_polar) , to_Spectral.(Qinv_polar)
     # B
 end
 
@@ -343,20 +354,26 @@ function potential_from_field(Bsup_s::AbstractVector, g_c::AbstractArray, Mc::In
     B0_s = zero_SpectralPowerSeries(Ms, 1);
     B0_s[1].a[:] = B_s[3][1].a
 
-    ϕ_s = deepcopy(B_s[1]) 
-    set_p0!(ϕ_s, 0)
-    ϕ_s[1].a[:] .= 0.;
-    ϕ_s[2].a[:] .= 0.;
+    phi_s = deepcopy(B_s[1]) 
+    set_p0!(phi_s, 0)
+    phi_s[1].a[:] .= 0.;
+    phi_s[2].a[:] .= 0.;
     for n = 3:Nρ
-        ϕ_s[n] = ϕ_s[n].a .* (1/(n-1))
+        phi_s[n] = phi_s[n].a .* (1/(n-1))
     end
 
-    ϕ_c = SpatialPowerSeries(ϕ_s, M=Mc)
+    phi_c = SpatialPowerSeries(phi_s, M=Mc)
 
-    B_c, B_s, ϕ_c, ϕ_s, B0_s
+    B_c, B_s, phi_c, phi_s, B0_s
 end
 
+"""
+    field_to_nae(r0_s::AbstractVector{SpectralPowerSeries{T}}, 
+        Bsup_s::AbstractVector{SpectralPowerSeries{T}}, Mc::Integer, K_reg::Integer, 
+        N_reg::Integer) where {T}
 
+Create a DirectNearAxisEquilibrium object with the magnetic field from a coil expansion. 
+"""
 function field_to_nae(r0_s::AbstractVector{SpectralPowerSeries{T}}, 
                       Bsup_s::AbstractVector{SpectralPowerSeries{T}}, Mc::Integer, 
                       K_reg::Integer, N_reg::Integer) where {T}
@@ -364,29 +381,29 @@ function field_to_nae(r0_s::AbstractVector{SpectralPowerSeries{T}},
 
     Ms = get_M(r0_s[1]);
     Nρ = get_N(Bsup_s[1])
-    r0_c, ℓp_s, ℓp_c, ℓp_ave, κ_s, κ_c, τ_s, τ_c, Q_s, Q_c = get_κτ(r0_s, Mc)
+    r0_c, ellp_s, ellp_c, ellp_ave, kappa_s, kappa_c, tau_s, tau_c, Q_s, Q_c = get_kappatau(r0_s, Mc)
     g_s, g_c, ginv_s, ginv_c, rootg_s, rootg_c, rootginv_s, rootginv_c = (
-       get_FS_metric(Nρ,ℓp_c,κ_c,τ_c,Ms))
+       get_FS_metric(Nρ,ellp_c,kappa_c,tau_c,Ms))
 
-    B_c, B_s, ϕ_c, ϕ_s, B0_s = potential_from_field(Bsup_s, g_c, Mc)
+    B_c, B_s, phi_c, phi_s, B0_s = potential_from_field(Bsup_s, g_c, Mc)
 
-    dϕ_s = [zero_SpectralPowerSeries(T, Ms, Nρ) for ii = 1:3]
+    dphi_s = [zero_SpectralPowerSeries(T, Ms, Nρ) for ii = 1:3]
     BK_s = [zero_SpectralPowerSeries(T, Ms, Nρ) for ii = 1:3];
     BK_c = [SpatialPowerSeries(B_si; M = Mc) for B_si in B_s]
 
-    ψ_s = zero_SpectralPowerSeries(T, Ms, Nρ)
-    ψ_c = zero_SpatialPowerSeries(T, Mc, Nρ)
+    psi_s = zero_SpectralPowerSeries(T, Ms, Nρ)
+    psi_c = zero_SpatialPowerSeries(T, Mc, Nρ)
 
-    ξ_s = [zero_SpectralPowerSeries(T, Ms, Nρ) for ii = 1:2]
-    ξ_c = [zero_SpatialPowerSeries(T, Ms, Nρ)  for ii = 1:2]
+    xi_s = [zero_SpectralPowerSeries(T, Ms, Nρ) for ii = 1:2]
+    xi_c = [zero_SpatialPowerSeries(T, Ms, Nρ)  for ii = 1:2]
 
-    ι = zero_FluxPowerSeries(T, Nρ)
+    iota = zero_FluxPowerSeries(T, Nρ)
 
     # display(typeof.([]))
-    nae = DirectNearAxisEquilibrium(Ms, Mc, Nρ, r0_s, r0_c, ℓp_s, ℓp_c, ℓp_ave, κ_s, κ_c, τ_s,
-             τ_c, Q_s, Q_c,
+    nae = DirectNearAxisEquilibrium(Ms, Mc, Nρ, r0_s, r0_c, ellp_s, ellp_c, ellp_ave, kappa_s, kappa_c, tau_s,
+             tau_c, Q_s, Q_c,
              g_s, g_c, ginv_s, ginv_c, rootg_s, rootg_c, rootginv_s, rootginv_c,
-             B0_s, B_s, B_c, ϕ_s, ϕ_c, dϕ_s, BK_s, BK_c, ψ_s, ψ_c, ξ_s, ξ_c, ι,
+             B0_s, B_s, B_c, phi_s, phi_c, dphi_s, BK_s, BK_c, psi_s, psi_c, xi_s, xi_c, iota,
              K_reg, N_reg)
 
     

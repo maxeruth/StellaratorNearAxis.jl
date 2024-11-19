@@ -247,7 +247,14 @@ function zero_SpatialPowerSeries(T::DataType, M::Integer, N::Integer; p0::Intege
     SpatialPowerSeries(a; p0)
 end
 
+"""
+    similar(A<:AbstractPowerSeries; M=nothing, N=nothing, p0=nothing)
 
+Create a zero AbstractPowerSeries of the same type as `A` (except, in 
+the case of an IdentityPowerSeries, returns another IdentityPowerSeries).
+Can optionally set the number of Spatial/Spectral modes `M`, series order
+`N`, and order offset `p0`.
+"""
 function similar(A::SpatialPowerSeries{T}; M::Union{Integer, Nothing}=nothing,
         N::Union{Integer, Nothing}=nothing, p0::Union{Integer, Nothing}=nothing) where {T}
 #
@@ -257,7 +264,6 @@ function similar(A::SpatialPowerSeries{T}; M::Union{Integer, Nothing}=nothing,
 
     zero_SpatialPowerSeries(T, M, N; p0)
 end
-
 
 function distribute_p0(A::SpatialPowerSeries{T}, p0::Integer) where {T}
     p0A = get_p0(A);

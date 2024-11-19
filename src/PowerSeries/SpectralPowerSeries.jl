@@ -282,7 +282,7 @@ function SpectralPowerSeries(A::SpatialPowerSeries{T}; M::Integer=-1) where {T}
     B
 end
 
-function SpectralPowerSeries(A::ZeroPowerSeries{T}; M::Union{Integer, Nothing}=nothing,
+function SpectralPowerSeries(::ZeroPowerSeries{T}; M::Union{Integer, Nothing}=nothing,
         N::Union{Integer, Nothing}=nothing, p0::Union{Integer, Nothing}=nothing) where {T}
     N =  isnothing(N)  ? 1 : N;
     M =  isnothing(M)  ? 1 : M;
@@ -504,11 +504,11 @@ function section_j!(B::SpectralPowerSeries, A::SpectralPowerSeries, Φ::Abstract
     B[jj] = Φ*A[jj].a
 end
 
-"""
-    section(A::SpectralPowerSeries, s::Number)
+# """
+#     section(A::SpectralPowerSeries, s::Number)
 
-Find a polar expression for the SpectralPowerSeries `A` at a fixed value of `s`
-"""
+# Find a polar expression for the SpectralPowerSeries `A` at a fixed value of `s`
+# """
 function section(A::SpectralPowerSeries, ϕ::Number)
     N = get_N(A);
     B = zero_SpectralPowerSeries(1,N);
@@ -613,7 +613,8 @@ end
     invert_coordinates(F::AbstractVector)
 
 Invert the SpectralPowerSeries coordinate transform `F`. That is, 
-the composition of `F` with the output `G` satisfies `F∘G(x) ≈ x`
+the composition via [`compose`](@ref) of `F` with the output `G` 
+satisfies `F∘G(x) ≈ x`
 """
 function invert_coordinates(F::AbstractVector; M::Integer=-1)
     Ms = get_M(F[1]);
@@ -743,9 +744,7 @@ end
 """
     fit_SpectralPowerSeries(a::AbstractArray, r::AbstractVector, M::Integer, N::Integer)
 
-Fit a SpectralPowerSeries to the samples of some function (note: this is not
-smart about the radial interpolation, and would likely require some sort of
-Zernike shenanigans to be more effective.)
+Fit a SpectralPowerSeries to the samples of some function.
 
 input:
 - `f`: A function from R^3→R, with signature `f(r,θ,ϕ)`

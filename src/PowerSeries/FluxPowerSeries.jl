@@ -30,10 +30,16 @@ end
 
 function get_M(A::FluxPowerSeries); 1; end
 
+
 function zero_FluxPowerSeries(T::DataType, N::Integer; p0::Integer=0)
     FluxPowerSeries(zeros(T,N); p0)
 end
 
+"""
+    zero_FluxPowerSeries(N::Integer; p0::Integer=0)
+
+Create a FluxPowerSeries of degree `N` and leading coefficient `p0` with zero entries.
+"""
 function zero_FluxPowerSeries(N::Integer; p0::Integer=0)
     zero_FluxPowerSeries(Float64, N; p0)
 end

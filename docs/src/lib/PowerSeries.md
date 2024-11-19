@@ -1,5 +1,5 @@
-# Power Series
-This is the documentation for power series structs and their operations.
+# Documentation
+This is the documentation for StellaratorNearAxis.jl structs and their operations.
 
 ## Contents
 ```@contents
@@ -20,6 +20,7 @@ Pages = [
     PowerSeriesRho
     ZeroPowerSeries
     IdentityPowerSeries
+    FluxPowerSeries
     SpectralPowerSeries
     SpatialPowerSeries
 ```
@@ -28,6 +29,8 @@ Pages = [
 ```@docs
     zero_SpectralPowerSeries
     zero_SpatialPowerSeries
+    zero_FluxPowerSeries
+    similar(::SpatialPowerSeries{T}) where {T}
     SpatialPowerSeries(::SpectralPowerSeries{T}) where {T}
     SpectralPowerSeries(::SpatialPowerSeries{T}) where {T}
     fit_SpectralPowerSeries
@@ -57,14 +60,39 @@ Pages = [
     div
     surface_integrate
     rho_integrate
-    rho_antideriv
+    rho_antideriv(::AbstractPowerSeries)
     volume_integrate
-    LinearAlgebra.norm(A::Vector{S}) where {S <: AbstractPowerSeries}
+    LinearAlgebra.norm(::AbstractVector{<:AbstractPowerSeries})
     Fnorm
+    L2norm(::AbstractPowerSeries, ::Number)
+    flux_compose(::FluxPowerSeries{T}, ::SpatialPowerSeries{T}) where {T}
+    composition_basis
+    compose
+    invert_coordinates
 ```
 
 ## Helper Functions
 ```@docs
-    remove_zeros
-    
+    remove_zeros(::AbstractPowerSeries)
+    change_order(::AbstractPowerSeries{T}, ::Integer) where {T}
+    distribute_p0(::AbstractPowerSeries, ::Integer)
+    unsafe_distribute_p0
+```
+
+## Coil Functions
+```@docs
+    Coil
+    evaluate(::AbstractArray{T}, ::Coil, ::Integer) where {T}
+    magnetic_trajectory(::Vector{Coil}, ::AbstractVector, ::Number, ::Number)
+    find_magnetic_axis(::AbstractVector, ::Vector{Coil}, ::Integer)
+    get_field_on_axis
+    field_to_nae
+```
+
+## Direct Frenet-Serret Equilibrium Problem
+```@docs
+    DirectNearAxisEquilibrium
+    InitialVacuumNearAxisEquilibrium
+    vacuum_solve
+    get_flux_coordinates
 ```
