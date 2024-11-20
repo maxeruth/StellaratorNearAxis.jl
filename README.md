@@ -1,14 +1,12 @@
+[![](https://img.shields.io/badge/docs-blue.svg)](https://maxeruth.github.io/StellaratorNearAxis.jl/dev/)
+
 # StellaratorNearAxis.jl
-This is a package that computes the stellarator near-axis expansion to high order. It will be in flux over the next few weeks (Updated 11/18/2024). On the to-do list are:
-1. Include a couple example notebooks.
-2. Add GitHub actions, particularly for Documentation.
+StellaratorNearAxis.jl is a Julia package for computing the regularized direct vacuum near-axis expansion for designing stellarators. The expansion solves a regularized version of Laplace's equation, details of which can be found in
+- [M. Ruth, R. Jorge, D. Bindel, The High-Order Magnetic Near-Axis Expansion: Ill-Posedness and Regularization, arXiv:2411.04352 (2024)](https://doi.org/10.48550/arXiv.2411.04352)
+Further documentation can be found [here](https://maxeruth.github.io/StellaratorNearAxis.jl/dev/).
 
-On the longer-term to-do list are:
-1. Implementation of more metrics (such as quasisymmetry)
-2. Incorporation of other solvers besides direct vacuum near-axis
-3. Addition of AD tools for optimization
-4. Hooks to Simsopt and/or StellaratorOptimization.jl
-5. Creation of a couple quality-of-life macros for automatically checking series operations
-6. Create unit tests.
+## Installation
+To install this package, you may clone it here. Then, in Julia, the package can be added by the command `]add path/to/StellaratorNearAxis.jl`.
 
-If you would like to use this package in your research and would particularly like one of these features, contact me at `maximilian.ruth@austin.utexas.edu`. I'm happy to collaborate!
+## Contact
+For any questions, email [maximilian.ruth@austin.utexas.edu](mailto:maximilian.ruth@austin.utexas.edu).
