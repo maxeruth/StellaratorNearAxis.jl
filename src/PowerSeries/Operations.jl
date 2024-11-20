@@ -17,7 +17,7 @@ end
 
 Multiply the power series `A` by a scalar number.
 """
-function *(a::Number, A::AbstractPowerSeries)
+function *(a::Number, A::AbstractPowerSeries; kwargs...)
     B = similar(A);
     for jj = 1:get_N(B)
         B[jj] = a*A[jj];
@@ -26,7 +26,7 @@ function *(a::Number, A::AbstractPowerSeries)
     B
 end
 
-function *(A::AbstractPowerSeries, a::Number)
+function *(A::AbstractPowerSeries, a::Number; kwargs...)
     return *(a, A)
 end
 
@@ -479,7 +479,7 @@ end
 # """
 function LinearAlgebra.cross(a::Vector{S}, b::Vector{T}; Ns=[-1,-1,-1],
                              careful::Bool=false, careful_tol::Number=1e-12) where
-             {S <: Union{AbstractPowerSeries}, 
+             {S <: AbstractPowerSeries, 
               T <: Union{AbstractPowerSeries, Number}}
     @assert length(a) == 3
     @assert length(b) == 3
@@ -494,8 +494,8 @@ end
 
 function LinearAlgebra.cross(a::Vector{S}, b::Vector{T}; Ns=[-1,-1,-1],
     careful::Bool=false, careful_tol::Number=1e-12) where
-            {S <: Union{AbstractPowerSeries, Number}, 
-            T <: Union{AbstractPowerSeries}}
+            {S <: Number, 
+             T <: AbstractPowerSeries}
     cross(b,a;Ns,careful,careful_tol)
 end
 
@@ -507,11 +507,12 @@ end
 # """
 function LinearAlgebra.dot(a::Vector{<:AbstractPowerSeries}, b::Vector{<:AbstractPowerSeries}; 
                            N::Integer=-1, careful::Bool=false, careful_tol::Number=1e-12)
-    @assert length(a) == 3
-    @assert length(b) == 3
-    C = (*(a[1], b[1]; N, careful, careful_tol) + 
-         *(a[2], b[2]; N, careful, careful_tol) + 
-         *(a[3], b[3]; N, careful, careful_tol))
+    @assert length(a) == length(b)
+    
+    C = *(a[1], b[1]; N, careful, careful_tol)
+    for ii = 2:length(a)
+        C = C + *(a[ii], b[ii]; N, careful, careful_tol)
+    end
 
     C 
 end

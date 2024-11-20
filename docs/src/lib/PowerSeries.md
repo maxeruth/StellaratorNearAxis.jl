@@ -82,9 +82,10 @@ Pages = [
 ## Coil Functions
 ```@docs
     Coil
-    evaluate(::AbstractArray{T}, ::Coil, ::Integer) where {T}
-    magnetic_trajectory(::Vector{Coil}, ::AbstractVector, ::Number, ::Number)
-    find_magnetic_axis(::AbstractVector, ::Vector{Coil}, ::Integer)
+    load_coils
+    evaluate(::AbstractArray{T}, ::Coil) where {T}
+    magnetic_trajectory
+    find_magnetic_axis
     get_field_on_axis
     field_to_nae
 ```
@@ -95,4 +96,11 @@ Pages = [
     InitialVacuumNearAxisEquilibrium
     vacuum_solve
     get_flux_coordinates
+```
+
+## Plotting
+```@docs
+    plot_curve!
+    flux_surface_plot!
+    flux_contours!
 ```

@@ -57,7 +57,7 @@ struct DirectNearAxisEquilibrium
     iota::FluxPowerSeries                # Rotation number
 
     # Regularization Quantities
-    K_reg::Integer # Characteristic number of Fourier modes to resolve
+    K_reg::Number # Characteristic number of Fourier modes to resolve
     N_reg::Integer # Power law of the regularization
 end
 
@@ -148,6 +148,16 @@ function get_kappatau(r0_s::Vector{SpectralPowerSeries{T}}, Mc::Integer) where {
     r0_c, ellp_s, ellp_c, ellp_ave, kappa_s, kappa_c, tau_s, tau_c, Q_s, Q_c
 end
 
+# Create the position SpectralPowerSeries from the axis and its chosen frame
+function r0_to_r(r0_s::AbstractVector, Q0_s::AbstractArray)
+    r = [change_order(ri, 2) for ri in r0_s]
+    for ii = 1:3, jj = 1:2
+        r[ii][2].a[:,jj] = Q0_s[ii,jj][1].a
+    end
+
+    return r
+end
+
 function initial_metric_matrix()
     g = Matrix{AbstractPowerSeries}(undef, 3, 3);
     g[1, 2] = ZeroPowerSeries();
@@ -213,7 +223,7 @@ end
 """
     InitialVacuumNearAxisEquilibrium(r0_s::Vector{SpectralPowerSeries{T}},
                Nρ::Integer, Mc::Integer, B0_s::SpectralPowerSeries{T}, 
-               K_reg::Integer, N_reg::Integer) where {T}
+               K_reg::Number, N_reg::Integer) where {T}
 
 Initialize a DirectNearAxisEquilibrium, which can then be solved via [`vacuum_solve`](@ref).
 Input:
@@ -222,12 +232,12 @@ Input:
 - `Nρ`: The order of the series
 - `Mc`: The number of collocation nodes for SpatialPowerSeries in the pseudospectral method
 - `B0_s`: The on-axis magnetic field magnitude
-- `K_reg`: The regularization wavenumber cutoff
+- `K_reg`: The regularization wavenumber cutoff (set to Inf for no regularization)
 - `N_reg`: The regularization exponent
 """
 function InitialVacuumNearAxisEquilibrium(r0_s::Vector{SpectralPowerSeries{T}},
                Nρ::Integer, Mc::Integer, B0_s::SpectralPowerSeries{T}, 
-               K_reg::Integer, N_reg::Integer) where {T}
+               K_reg::Number, N_reg::Integer) where {T}
     # @assert mod(Nρ, 2) == 1
     r0_s = to_arclength(r0_s, Mc); # Set 
 
@@ -327,7 +337,7 @@ end
 
 # M = number of s-modes
 # N = number of θ-modes
-function regularization_diagonal_operator(M::Integer, N::Integer, K_reg::Integer, N_reg::Integer)
+function regularization_diagonal_operator(M::Integer, N::Integer, K_reg::Number, N_reg::Integer)
     v = ones(M,N-1); 
     
     for m = 2:2:M
@@ -354,22 +364,14 @@ function update_BK!(nae)
     ρ = PowerSeriesRho()
 
     dphids_s = deepcopy(nae.phi_s)
-    for ii = 1:nae.N_reg
-        dphids_s = -(nae.K_reg*nae.ellp_s[1].a[1])^(-2) * s_deriv(s_deriv(dphids_s))
+    if nae.K_reg != Inf
+        for ii = 1:nae.N_reg
+            dphids_s = -(nae.K_reg*nae.ellp_s[1].a[1])^(-2) * s_deriv(s_deriv(dphids_s))
+        end
+    else
+        dphids_s = similar(nae.phi_s)
     end
-
     
-    ## Potential alternate method for taking the derivative
-    # dphids_s2= deepcopy(nae.phi_s)
-    # for ii = 1:nae.Nρ
-    #     dphids_s[ii].a[1,:] .= 0.
-    #     for jj = 2:2:nae.Ms
-    #         dphids_s[ii].a[jj:jj+1,:] = dphids_s[ii].a[jj:jj+1,:] .* ((jj÷2)/nae.K_reg)^(2. * nae.N_reg)
-    #     end
-    # end
-
-    # display(Fnorm(dphids_s - dphids_s2))
-
     dphi_s = Diagonal([ρ, inv(ρ), ZeroPowerSeries()]) * grad(dphids_s)
 
     nae.dphi_s[1:2] = grad(dphids_s)[1:2]

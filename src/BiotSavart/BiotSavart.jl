@@ -1,39 +1,119 @@
 """
     Coil
 
-A coil consists of a filament and a current. It can be constructed by `Coil(r0, J)`, where `r0` 
-is a 3-vector of SpectralPowerSeries and `J` is a number expressing the current per unit length.
+A coil consists of a filament and a current. It can be constructed by `Coil(r0, J, Mcoil)`, where 
+`r0` is a 3-vector of SpectralPowerSeries, `J` is a number expressing the current per unit length, 
+and `Mcoil` is the number of quadrature nodes for Biot-Savart.
 """
 struct Coil
-    r0::Vector # The coil location
+    r0_s::Vector        # The coil location (SpectralPowerSeries)
+    X_c::AbstractArray  # The coil location (SpatialPowerSeries, for `evaluate`)
+    dX_c::AbstractArray # The coil location derivative (SpatialPowerSeries, for `evaluate`)
     J::Number  # The current in the coil
+
+    function Coil(r0_s, J::Number, Mcoil::Integer)
+        to_Spatial = (f) -> SpatialPowerSeries(f; M=Mcoil);
+        r0_c = to_Spatial.(r0_s)
+        dr0_c = to_Spatial.(s_deriv.(r0_s))
+        
+        X = Vector{SVector{3,Float64}}(undef, Mcoil);
+        dX = Vector{SVector{3,Float64}}(undef, Mcoil);
+
+        for jj = 1:Mcoil
+            X[jj]  = @SVector [ r0_c[1][1].a[jj], r0_c[2][1].a[jj], r0_c[3][1].a[jj]]
+            dX[jj] = @SVector [dr0_c[1][1].a[jj],dr0_c[2][1].a[jj],dr0_c[3][1].a[jj]]
+        end
+
+        new(r0_s,X,dX,J)
+    end
+end
+
+function get_current(current, scale, objs)
+    cls = current["@class"]
+    if cls == "ScaledCurrent"
+        scale = scale * current["scale"]
+        current = objs[current["current_to_scale"]["value"]]
+        return get_current(current, scale, objs)
+    elseif cls == "CurrentSum"
+        current_a = objs[current["current_a"]["value"]]
+        current_b = objs[current["current_b"]["value"]]
+        return get_current(current_a, scale, objs) + get_current(current_b, scale, objs)
+    end
+
+    return scale * current["current"]
 end
 
 """
-    evaluate(x::AbstractArray, c::Coil, M::Number)
+
+Input:
+- `coil_file`: A JSON file holding the output of a Simsopt coil optimization
+- `Mcoil`: The number of coil quadrature nodes for Biot-Savart
+
+Output:
+- The coil set contained in `coil_file`, which can be used to initialize a near axis expansion.
+"""
+function load_coils(coil_file::AbstractString, Mcoil::Number)
+    coils_py = JSON.parsefile(coil_file);
+    coils = Coil[]
+    objs = coils_py["simsopt_objs"]
+
+    for (key, value) in objs
+        if key[1:4] == "Coil"
+            current = objs[value["current"]["value"]]
+            J = get_current(current, 1.0, objs)
+            
+            val = value["curve"]["value"]
+            curve = objs[val]
+            flip = false;
+            phi = 0.0;
+            
+            if val[1:12] == "RotatedCurve"
+                phi = curve["phi"]
+                flip = curve["flip"]
+                val = curve["curve"]["value"]
+            end
+            
+            curve = objs[val]
+            dofs = objs[curve["dofs"]["value"]]
+            coeffs = dofs["x"]["data"]
+            Ms_coil = length(coeffs)÷3;
+            coeffs = reshape(coeffs, Ms_coil, 3)
+            
+            rotmat = [cos(phi) -sin(phi) 0; sin(phi) cos(phi) 0; 0 0 1];
+
+            if flip
+                rotmat = rotmat * Diagonal([1, -1, -1])
+            end
+            coeffs = coeffs * rotmat
+            
+            r0_coil = [zero_SpectralPowerSeries(Ms_coil, 1) for ii = 1:3]
+            for ii = 1:3
+                r0_coil[ii][1].a[:] = coeffs[:,ii]
+            end
+
+            push!(coils, Coil(r0_coil, J, Mcoil))
+        end
+    end
+
+    coils
+end
+
+
+
+
+"""
+    evaluate(x::AbstractArray, c::Coil)
 
 Get the magnetic field from the coil `c` at points `x` in a 3×N array. Uses Biot-Savart discretized 
-via the trapezoidal rule with `M` quadrature points.
+via the trapezoidal rule.
 """
-function evaluate(x::AbstractArray{T}, c::Coil, M::Integer) where {T}
-    to_Spatial = (f) -> SpatialPowerSeries(f; M=M);
-
+function evaluate(x::AbstractArray{T}, c::Coil) where {T}
     K,N = size(x);
     @assert K == 3
 
-    r0_s = c.r0;
-    dr0_s = s_deriv.(r0_s);
-
-    r0_c = to_Spatial.(r0_s);
-    dr0_c = to_Spatial.(dr0_s);
-
-    X = zeros(3, M);
-    dX = zeros(3, M);
-
-    for ii = 1:3
-        X[ii,:] = r0_c[ii][1].a
-        dX[ii, :] = dr0_c[ii][1].a;
-    end
+    X  = c.X_c;
+    dX = c.dX_c
+    M = length(X)
 
     Xn = zeros(T, 3, M);
     B = zeros(T, 3, N)
@@ -41,28 +121,27 @@ function evaluate(x::AbstractArray{T}, c::Coil, M::Integer) where {T}
     fac = c.J * 10^-7;
 
     for (n, xn) in enumerate(eachcol(x))
-        for ii = 1:3
-            Xn[ii,:] = X[ii,:] .- xn[ii]
-        end
-
+        Xn = @SVector [xn[1],xn[2],xn[3]]
+        Bn = @SVector [0., 0., 0.]
         for jj = 1:M
-            norm_jj = sqrt(Xn[:,jj]'*Xn[:,jj])
-            Bn[:,jj] = LinearAlgebra.cross(Xn[:,jj], dX[:,jj])/norm_jj^3
+            v = X[jj] - Xn
+            norm_jj = norm(v)
+            Bn = Bn + StaticArrays.cross(v, dX[jj])/norm_jj^3
         end
-        B[:,n] = sum(Bn, dims=2) .* (fac * (2π/M));
+        B[:,n] = Bn .* (fac*(2π/M))
     end
     
-    B
+    B # .* (fac .* (2π/M))
 end
 
-function evaluate(x::AbstractVector, c::Coil, M::Integer)
-    vec(evaluate(reshape(x,3,1), c, M))
+function evaluate(x::AbstractVector, c::Coil)
+    vec(evaluate(reshape(x,3,1), c))
 end
 
-function evaluate(x::AbstractArray, cs::Vector{Coil}, M::Integer)
-    B = evaluate(x,cs[1],M);
+function evaluate(x::AbstractArray, cs::Vector{Coil})
+    B = evaluate(x,cs[1]);
     for c in cs[2:end]
-        B = B + evaluate(x,c,M);
+        B = B + evaluate(x,c);
     end
 
     B
@@ -119,35 +198,34 @@ end
 # end
 
 """
-    magnetic_trajectory(c::Vector{Coil}, x0, T; tol=1e-8)
+    magnetic_trajectory(cs::Vector{Coil}, x0::AbstractVector, S::Number; tol::Number=1e-8)
 
-Evolve the magnetic field generated by the coil set `cs` with `M` quadrature points
+Evolve the magnetic field generated by the coil set `cs`
 starting at the point `x0` a distance `S` to tolerance `tol`. Outputs a OrdinaryDiffEq
 solution object. It also returns the times at which the trajectory passes through the 
 Poincare surface intersects with the initial toroidal coordinate.
 """
-function magnetic_trajectory(cs::Vector{Coil}, x0::AbstractVector, S::Number, M::Number; tol::Number=1e-8)
+function magnetic_trajectory(cs::Vector{Coil}, x0::AbstractVector, S::Number; tol::Number=1e-8)
     function f!(dx::AbstractVector, x::AbstractVector, p, s)
-        M = p[1]
-        B = evaluate(x, cs, M);
+        B = evaluate(x, cs);
         dx[:] = B ./ sqrt(B'*B)
     end
 
     # int is the integrator
     function condition(x, t, int)
-        angle((x[1] + im*x[2])*exp(-im*int.p[2]))
+        angle((x[1] + im*x[2])*exp(-im*int.p[1]))
     end
 
     function affect!(int)
         x = int.u
         phi = angle(x[1] + im*x[2])
-        if (phi-int.p[2])^2 < 0.01
-            push!(int.p[3], [sqrt(x[1]^2 + x[2]^2), x[3], angle(x[1] + im*x[2])])
+        if (phi-int.p[1])^2 < 0.01
+            push!(int.p[2], [sqrt(x[1]^2 + x[2]^2), x[3], angle(x[1] + im*x[2])])
         end
     end
 
     phi0 = angle(x0[1] + im * x0[2])
-    params = [M, phi0, [[sqrt(x0[1]^2 + x0[2]^2), x0[3], phi0]]]
+    params = (phi0, [[sqrt(x0[1]^2 + x0[2]^2), x0[3], phi0]])
     sspan = (0, S);
 
     cb = ContinuousCallback(condition, affect!)
@@ -155,32 +233,31 @@ function magnetic_trajectory(cs::Vector{Coil}, x0::AbstractVector, S::Number, M:
     prob = ODEProblem(f!, x0, sspan, params);
     
     sol = solve(prob, Tsit5(), reltol = tol, abstol = tol, callback=cb)
-    sol , hcat(sol.prob.p[3]...)
+    sol , hcat(sol.prob.p[2]...)
 end
 
-function magnetic_map_trajectory(cs::Vector{Coil}, x0::AbstractVector, M::Number; tol::Number=1e-8, Smax::Number=100.)
+function magnetic_map_trajectory(cs::Vector{Coil}, x0::AbstractVector; tol::Number=1e-8, Smax::Number=100.)
     function f!(dx::AbstractVector, x::AbstractVector, p, s)
-        M = p[1]
-        B = evaluate(x, cs, M);
+        B = evaluate(x, cs);
         dx[:] = B ./ sqrt(B'*B)
     end
 
     # int is the integrator
     function condition(x, t, int)
-        angle((x[1] + im*x[2])*exp(-im*int.p[2]))
+        angle((x[1] + im*x[2])*exp(-im*int.p[1]))
     end
 
     function affect!(int)
         x = int.u
         phi = angle(x[1] + im*x[2])
-        if (phi-int.p[2])^2 < 0.01
-            push!(int.p[3], [sqrt(x[1]^2 + x[2]^2), x[3]])
+        if (phi-int.p[1])^2 < 0.01
+            push!(int.p[2], [sqrt(x[1]^2 + x[2]^2), x[3]])
             terminate!(int)
         end
     end
 
     phi0 = angle(x0[1] + im * x0[2])
-    params = [M, phi0, [[sqrt(x0[1]^2 + x0[2]^2), x0[3]]]]
+    params = (phi0, [[sqrt(x0[1]^2 + x0[2]^2), x0[3]]])
     sspan = (0, Smax);
 
     cb = ContinuousCallback(condition, affect!)
@@ -190,31 +267,35 @@ function magnetic_map_trajectory(cs::Vector{Coil}, x0::AbstractVector, M::Number
     solve(prob, Tsit5(), reltol = tol, abstol = tol, callback=cb)
 end
 
-function magnetic_map(cs::Vector{Coil}, x0::AbstractVector, M::Number; tol::Number=1e-8, Smax::Number=100.)
-    sol = magnetic_map_trajectory(cs, x0, M; tol, Smax)
+function magnetic_map(cs::Vector{Coil}, x0::AbstractVector; tol::Number=1e-8, Smax::Number=100.)
+    sol = magnetic_map_trajectory(cs, x0; tol, Smax)
     sol.u[end]
 end
 
 """
-    find_magnetic_axis(x0::AbstractVector, cs::Vector{Coil}, Mcoil::Integer)
+    find_magnetic_axis(x0::AbstractVector, cs::Vector{Coil})
 
 Find a point on the magnetic axis of a coil set `cs` with `Mcoil` quadrature points. Requires an 
 initial guess of a point on the axis `x0`. 
 """
-function find_magnetic_axis(x0::AbstractVector, cs::Vector{Coil}, Mcoil::Integer; tol::Number=1e-8)
+function find_magnetic_axis(x0::AbstractVector, cs::Vector{Coil}; tol::Number=1e-12)
     phi0 = angle( x0[1] + im * x0[2] );
     x0 = [sqrt(x0[1]^2 + x0[2]^2), x0[3]]
     function f!(F, x)
-        xF =  magnetic_map(cs, [x[1]*cos(phi0), x[1]*sin(phi0), x[2]], Mcoil; tol)
+        xF =  magnetic_map(cs, [x[1]*cos(phi0), x[1]*sin(phi0), x[2]]; tol)
         F[:] = [sqrt(xF[1]^2 + xF[2]^2), xF[3]] - x
     end
     
-    return nlsolve(f!, x0, autodiff = :forward, ftol=tol)
+    sol = nlsolve(f!, x0, autodiff = :forward, ftol=tol)
+
+    xFf = sol.zero
+    x0 = [xFf[1]*cos(phi0), xFf[1]*sin(phi0), xFf[2]]
+
+    return x0
 end
 
-function axis_from_point(x0::AbstractVector, cs::Vector{Coil}, Ms::Integer, Mc::Integer, 
-                         Mcoil::Integer; tol=1e-8, Smax::Number=100.)
-    sol = magnetic_map_trajectory(cs, x0, Mcoil; tol, Smax)
+function axis_from_point(x0::AbstractVector, cs::Vector{Coil}, Ms::Integer, Mc::Integer; tol=1e-8, Smax::Number=100.)
+    sol = magnetic_map_trajectory(cs, x0; tol, Smax)
 
     S = sol.t[end]
     ss = (0:Mc-1) .* (S/Mc)
@@ -229,7 +310,7 @@ function axis_from_point(x0::AbstractVector, cs::Vector{Coil}, Ms::Integer, Mc::
 
     r0 = [SpectralPowerSeries(ri, M=Ms) for ri in r0_c]
 
-    sol, r0
+    r0
 end
 
 
@@ -265,15 +346,14 @@ function get_field_on_axis(r0::AbstractVector, cs::Vector{Coil}, Mc::Number, N::
     ρ = PowerSeriesRho()
 
     hinv = inv(*(ellp_c, 1. - *(kappa_c, x_c; N=2); N=N))
-    display(hinv)
 
-    ρ_tst = 0.1; θ_tst = 0.1; s_tst = 0.1;
-    println("hinv = $(evaluate(to_Spectral(hinv), ρ_tst, θ_tst, s_tst)[1])")
-    kappa_tst = evaluate(kappa_s, ρ_tst, θ_tst, s_tst)[1]
-    ellp_tst = evaluate(ellp_s, ρ_tst, θ_tst, s_tst)[1]
-    x_tst = evaluate(x_s, ρ_tst, θ_tst, s_tst)[1]
-    println("kappa = $kappa_tst, ellp = $ellp_tst")
-    println("hinv_tst = $(1/(ellp_tst*(1-x_tst*kappa_tst)))")
+    # ρ_tst = 0.1; θ_tst = 0.1; s_tst = 0.1;
+    # println("hinv = $(evaluate(to_Spectral(hinv), ρ_tst, θ_tst, s_tst)[1])")
+    # kappa_tst = evaluate(kappa_s, ρ_tst, θ_tst, s_tst)[1]
+    # ellp_tst = evaluate(ellp_s, ρ_tst, θ_tst, s_tst)[1]
+    # x_tst = evaluate(x_s, ρ_tst, θ_tst, s_tst)[1]
+    # println("kappa = $kappa_tst, ellp = $ellp_tst")
+    # println("hinv_tst = $(1/(ellp_tst*(1-x_tst*kappa_tst)))")
 
     r = [+(r0_c[ii], *(Q_c[ii, 1],x_c;N) + *(Q_c[ii,2],y_c;N) ; N) for ii = 1:3]
     
@@ -284,7 +364,7 @@ function get_field_on_axis(r0::AbstractVector, cs::Vector{Coil}, Mc::Number, N::
 
     for c in cs
         # Get the necessary coil information
-        c0_s = c.r0;
+        c0_s = c.r0_s;
         dc0_s = s_deriv.(c0_s);
 
         c0_c = [SpatialPowerSeries(ci; M=Mcoil) for ci in c0_s];
@@ -300,7 +380,7 @@ function get_field_on_axis(r0::AbstractVector, cs::Vector{Coil}, Mc::Number, N::
             xi = yi - r
 
             num = cross(xi, dyi)
-            den = (xi'*xi)^(3/2)
+            den = dot(xi,xi)^(3/2)
 
             B = B + (fac * (2π/Mcoil)) * num ./ den
         end
@@ -376,7 +456,7 @@ Create a DirectNearAxisEquilibrium object with the magnetic field from a coil ex
 """
 function field_to_nae(r0_s::AbstractVector{SpectralPowerSeries{T}}, 
                       Bsup_s::AbstractVector{SpectralPowerSeries{T}}, Mc::Integer, 
-                      K_reg::Integer, N_reg::Integer) where {T}
+                      K_reg::Number, N_reg::Integer) where {T}
     r0_s = to_arclength(r0_s, Mc); # Set 
 
     Ms = get_M(r0_s[1]);

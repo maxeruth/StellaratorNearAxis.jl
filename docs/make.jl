@@ -12,17 +12,9 @@ makedocs(
     ),
     modules = [StellaratorNearAxis],
     pages = [
-        "StellaratorNearAxis.jl" => "index.md"
-        # "Examples" => [
-        #     "Birkhoff Averages" => "examples/birkhoff_averaging/birkhoff_averaging.md",
-        #     "Birkhoff Extrapolation" => "examples/extrapolation/extrapolation.md",
-        #     "Approximately Invariant Kernel Functions" => "examples/kernel/kernel.md"
-        # ],
-        "Documentation" => #[
-            # "Documentation" => 
-            "lib/PowerSeries.md"
-        #]
-        # "Internal Documentation" => "lib/Internal.md"
+        "StellaratorNearAxis.jl" => "index.md",
+        "Documentation" => "lib/PowerSeries.md",
+        "Example" => "examples/example.md"
     ],
     # warnonly=true
 )
