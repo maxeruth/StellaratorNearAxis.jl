@@ -158,8 +158,9 @@ The representation of near-axis series on collocation nodes.
 A `SpatialPowerSeries` is composed of `SpatialPowerSeriesSlice`s, each of which can be accessed by getindex via `A[n]`.
 Each slice `n` contains an `M × n` array of sampled values, where 
 `M` is the number of samples in the `s` direction and `n` is the order in the `θ` direction. 
-The `s` points are ordered as `2(j-1)π/M` for `1≤j≤M`, while in the `θ` points are ordered as `2π(k-1)/(2n-1)` for `1≤k≤n`.
-Algebraic operations, such as `*`, `/`, `inv`, etc. are defined for SpatialPowerSeries
+The `s` points are ordered as `2(j-1)π/M` for `1≤j≤M`, while in the `θ` points are ordered on a half grid
+as `(k-1)π/n` for `1≤k≤n`. Algebraic operations, such as `*`, `/`, `inv`, etc. are defined for 
+SpatialPowerSeries
 
 # Example
 Create a power series representing `y = ρ sin(θ)`

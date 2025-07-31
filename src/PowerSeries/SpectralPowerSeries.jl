@@ -164,52 +164,6 @@ function similar(A::SpectralPowerSeries{T}; M::Union{Integer, Nothing}=nothing,
     zero_SpectralPowerSeries(T, M, N; p0)
 end
 
-# # Get the composed basis
-# # basis[2n:2n+1] = [sin(n*(twist*ϕ + B)), cos(n*(twist*ϕ + B))]
-# function composition_basis(A::SpatialPowerSeries{T}, M::Integer;
-#                            twist::Integer=1) where {T}
-#     # println("Untested!!!")
-#     N = get_N(A);
-#     MA = get_M(A);
-#     p0 = get_p0(A);
-#     @assert p0 == 0;
-#     # basis = [zero_SpatialPowerSeries(MA, N) for ii = 1:N]
-#     basis = Vector{SpatialPowerSeries{T}}(undef, M);
-
-#     basis[1] = zero_SpatialPowerSeries(T, MA, N; p0);
-#     basis[1][1] = ones(T, MA);
-
-#     Φ = zero_SpatialPowerSeries(T, MA, N; p0);
-#     Φ[1] = (0:MA-1).*(twist*2π/MA);
-#     twisted_A = A+Φ;
-
-#     for m = 2:2:M
-#         S, C = sincos(twisted_A, m/2.);
-#         basis[m] = S;
-#         if m < M
-#             basis[m+1] = C;
-#         end
-#     end
-
-#     basis
-# end
-
-# ## Function to compose with Fourier coefficients stored in A
-# # f(ϕ) = A[0] + A[1] sin(ϕ) + A[2] cos(ϕ) + A[3] sin(2ϕ) + ...
-# function ϕ_compose(A::Vector{T}, basis::Vector{SpatialPowerSeries{T}}) where {T}
-#     #
-#     MA = length(A);
-#     @assert 1 <= MA <= length(basis);
-
-#     C = A[1]*basis[1];
-#     for ii = 2:MA
-#         C = C + A[ii]*basis[ii]
-#     end
-
-#     C
-# end
-
-
 
 # Make an M × N fourier matrix F
 function full_fourier_matrix(x::AbstractVector, N::Integer)

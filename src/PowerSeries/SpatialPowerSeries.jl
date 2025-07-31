@@ -67,7 +67,7 @@ function half_fourier_matrix(x::AbstractVector, N::Integer)
 end
 
 function half_fourier_points(M::Number)
-    (0:M-1) .* (2π/(2M-1))
+    (0:M-1) .* (π/M)
 end
 
 

@@ -182,7 +182,7 @@ function get_FS_metric(Nρ::Integer, ellp_c::SpatialPowerSeries{T},
     Mc = get_M(ellp_c)
     hs = zero_SpatialPowerSeries(Mc, 2);
     hs[1] = ones(T, Mc);
-    hs[2] = -kappa_c[1].a * (cos.([0, 2π/3]))'
+    hs[2] = -kappa_c[1].a * (cos.(half_fourier_points(2)))'
 
     M = get_M(kappa_c);
     # g = [ρ²    , ℓ'τρ²
@@ -472,15 +472,6 @@ function psi_residual(nae::DirectNearAxisEquilibrium)
     res_c = dot(nae.B_c, dpsi_c)
 
     return [to_Spectral(res_ci) for res_ci in res_c]
-end
-
-function psi_matrices(nae::DirectNearAxisEquilibrium)
-
-    Ms = nae.Ms;
-    Mc = nae.Mc;
-    x = (0:Ms-1).*(2π/Mc);
-    F = full_fourier_matrix(x, Ms)
-    # phi20, phi21, phi22 and derivative
 end
 
 
